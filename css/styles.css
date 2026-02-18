@@ -713,6 +713,250 @@ footer p {
 }
 
 /* ==================== 
+   Error Page Styles
+   ==================== */
+
+.error-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.error-card {
+    width: 100%;
+    max-width: 600px;
+    border: none;
+    border-radius: 12px;
+    background-color: #ffffff;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.error-icon {
+    font-size: 4rem;
+    display: block;
+}
+
+.error-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--danger-color);
+    margin-bottom: 1rem;
+}
+
+.error-code {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 0.5rem;
+}
+
+.error-description {
+    font-size: 1.1rem;
+    color: var(--text-dark);
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+.error-details {
+    padding: 1rem;
+    background-color: var(--light-bg);
+    border-left: 4px solid var(--danger-color);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+}
+
+.error-specific {
+    padding: 1rem;
+    background-color: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 8px;
+    color: #856404;
+    margin-bottom: 1.5rem;
+}
+
+.error-specific p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.error-message-container {
+    text-align: center;
+}
+
+.error-actions {
+    margin-top: 2rem;
+}
+
+.error-actions .btn {
+    transition: all 0.3s ease;
+}
+
+.error-actions .btn-outline-secondary {
+    color: #333333;
+    border: 2px solid #999999;
+}
+
+.error-actions .btn-outline-secondary:hover {
+    background-color: #333333;
+    color: #ffffff;
+    border-color: #333333;
+}
+
+.error-actions .btn-primary {
+    background-color: var(--primary-color);
+    border: none;
+}
+
+.error-actions .btn-primary:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(13, 110, 253, 0.3);
+}
+
+.error-support {
+    padding: 1rem 0;
+}
+
+.support-links {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.support-links a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.support-links a:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
+.support-links a:focus-visible {
+    outline: 3px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+#error-id-container {
+    padding: 1rem;
+    background-color: var(--light-bg);
+    border-radius: 8px;
+}
+
+#error-id-container code {
+    font-family: 'Courier New', monospace;
+    background-color: #ffffff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    color: var(--primary-color);
+}
+
+/* Error Page Responsive */
+@media (max-width: 768px) {
+    .error-card {
+        max-width: 100%;
+        margin: 0 20px;
+    }
+
+    .error-title {
+        font-size: 1.6rem;
+    }
+
+    .error-description {
+        font-size: 1rem;
+    }
+
+    .error-icon {
+        font-size: 3.5rem;
+    }
+
+    .d-sm-flex.justify-content-sm-center {
+        flex-direction: column !important;
+    }
+
+    .d-sm-flex.justify-content-sm-center .btn {
+        width: 100%;
+        margin-bottom: 0.75rem;
+    }
+
+    .d-sm-flex.justify-content-sm-center .btn:last-child {
+        margin-bottom: 0;
+    }
+
+    .support-links {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .support-links span {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .error-card {
+        margin: 0 10px;
+    }
+
+    .error-title {
+        font-size: 1.4rem;
+    }
+
+    .error-icon {
+        font-size: 3rem;
+    }
+
+    .error-description {
+        font-size: 0.95rem;
+    }
+
+    .btn {
+        padding: 0.65rem 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .error-card {
+        background-color: #2d2d2d;
+        color: #ffffff;
+    }
+
+    .error-title {
+        color: #ff6b6b;
+    }
+
+    .error-description {
+        color: #ffffff;
+    }
+
+    .error-details {
+        background-color: #3d3d3d;
+        color: #ffffff;
+    }
+
+    .error-specific {
+        background-color: #4d3d1a;
+        border-color: #8b7500;
+        color: #ffd700;
+    }
+
+    #error-id-container {
+        background-color: #3d3d3d;
+    }
+
+    #error-id-container code {
+        background-color: #2d2d2d;
+    }
+}
+
+/* ==================== 
    Print Styles
    ==================== */
 
