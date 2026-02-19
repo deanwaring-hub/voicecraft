@@ -392,7 +392,7 @@ function friendlyAuthError(err) {
     }
 }
 
-/**
+/**F
  * Wire up Bootstrap's native form validation so invalid fields
  * get highlighted when the user tries to submit an incomplete form.
  */

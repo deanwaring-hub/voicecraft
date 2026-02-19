@@ -95,56 +95,79 @@ function showCurrentJobSection(jobId, meta) {
  * Poll DynamoDB every POLL_INTERVAL_MS until the job is COMPLETE or FAILED.
  */
 function startPolling(jobId) {
+    let pollFailCount = 0;
+
     pollTimer = setInterval(async () => {
         try {
             const job = await fetchJob(jobId);
+            console.log(`Poll result for ${jobId}: ${job.status}`);
             updateCurrentJobUI(job);
+            pollFailCount = 0; // Reset on success
 
             if (job.status === 'COMPLETE' || job.status === 'FAILED') {
                 clearInterval(pollTimer);
                 // Refresh the all-jobs list now there's a new completed entry
                 const userId = sessionStorage.getItem('userId');
                 if (userId) loadAllJobs(userId);
-                // Clear the session flag so refreshing the page doesn't re-show
+                // Clear session flags so refreshing the page doesn't re-show the current job
                 sessionStorage.removeItem('currentJobId');
                 sessionStorage.removeItem('currentJobMeta');
             }
         } catch (err) {
-            console.error('Poll error:', err);
+            pollFailCount++;
+            console.error(`Poll error (${pollFailCount}):`, err);
+            // Stop polling after 5 consecutive failures to avoid hammering the API
+            if (pollFailCount >= 5) {
+                console.error('Stopping poll after 5 failures');
+                clearInterval(pollTimer);
+            }
         }
     }, POLL_INTERVAL_MS);
 }
 
 function updateCurrentJobUI(job) {
-    const badge      = document.getElementById('current-job-badge');
+    const badge        = document.getElementById('current-job-badge');
     const progressWrap = document.getElementById('current-job-progress-wrap');
-    const statusMsg  = document.getElementById('current-job-status-msg');
-    const downloadDiv = document.getElementById('current-job-download');
-    const downloadBtn = document.getElementById('current-job-download-btn');
-    const title      = document.getElementById('current-job-title');
+    const statusMsg    = document.getElementById('current-job-status-msg');
+    const downloadDiv  = document.getElementById('current-job-download');
+    const downloadBtn  = document.getElementById('current-job-download-btn');
+    const title        = document.getElementById('current-job-title');
 
     if (job.status === 'COMPLETE') {
+        // Update badge
         badge.textContent = 'Complete';
         badge.className   = 'badge rounded-pill badge-complete px-3 py-2';
+
+        // Swap progress bar for download button
         progressWrap.classList.add('d-none');
         downloadDiv.classList.remove('d-none');
+
+        // Update title
         if (title) title.textContent = 'Narration ready!';
 
-        // Request pre-signed download URL
+        // Get and set the pre-signed download URL
         if (job.outputKey) {
             getDownloadUrl(job.outputKey).then(url => {
-                if (url) downloadBtn.href = url;
-            });
+                if (url) {
+                    downloadBtn.href = url;
+                    downloadBtn.setAttribute('download', 'narration.mp3');
+                }
+            }).catch(err => console.error('Failed to get download URL:', err));
         }
 
     } else if (job.status === 'FAILED') {
         badge.textContent = 'Failed';
         badge.className   = 'badge rounded-pill badge-failed px-3 py-2';
-        if (statusMsg) statusMsg.textContent = job.errorMessage || 'Processing failed. Please try again.';
+        progressWrap.classList.add('d-none');
         if (title) title.textContent = 'Job failed';
+        // Show error message where the progress bar was
+        const errMsg = document.createElement('p');
+        errMsg.className = 'text-danger small mt-2 mb-0';
+        errMsg.textContent = job.errorMessage || 'Processing failed. Please try again.';
+        progressWrap.parentNode.appendChild(errMsg);
 
     } else {
-        // Still processing
+        // Still PROCESSING or PENDING
         if (statusMsg) statusMsg.textContent = 'Generating your audio narration with Amazon Polly...';
     }
 }
