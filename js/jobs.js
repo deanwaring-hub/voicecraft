@@ -94,35 +94,42 @@ function showCurrentJobSection(jobId, meta) {
 /**
  * Poll DynamoDB every POLL_INTERVAL_MS until the job is COMPLETE or FAILED.
  */
-function startPolling(jobId) {
+async function startPolling(jobId) {
     let pollFailCount = 0;
 
-    pollTimer = setInterval(async () => {
-        try {
-            const job = await fetchJob(jobId);
-            console.log(`Poll result for ${jobId}: ${job.status}`);
-            updateCurrentJobUI(job);
-            pollFailCount = 0; // Reset on success
+    // Check immediately on load rather than waiting for the first interval tick
+    await pollOnce(jobId);
 
-            if (job.status === 'COMPLETE' || job.status === 'FAILED') {
-                clearInterval(pollTimer);
-                // Refresh the all-jobs list now there's a new completed entry
-                const userId = sessionStorage.getItem('userId');
-                if (userId) loadAllJobs(userId);
-                // Clear session flags so refreshing the page doesn't re-show the current job
-                sessionStorage.removeItem('currentJobId');
-                sessionStorage.removeItem('currentJobMeta');
-            }
-        } catch (err) {
-            pollFailCount++;
-            console.error(`Poll error (${pollFailCount}):`, err);
-            // Stop polling after 5 consecutive failures to avoid hammering the API
-            if (pollFailCount >= 5) {
-                console.error('Stopping poll after 5 failures');
-                clearInterval(pollTimer);
-            }
+    pollTimer = setInterval(async () => {
+        const done = await pollOnce(jobId);
+        if (done) clearInterval(pollTimer);
+
+        if (!done) {
+            pollFailCount = pollFailCount; // keep counting in pollOnce
         }
     }, POLL_INTERVAL_MS);
+}
+
+async function pollOnce(jobId) {
+    try {
+        const job = await fetchJob(jobId);
+        console.log(`Poll result for ${jobId}: ${job.status}`);
+        updateCurrentJobUI(job);
+
+        if (job.status === 'COMPLETE' || job.status === 'FAILED') {
+            // Refresh the all-jobs list
+            const userId = sessionStorage.getItem('userId');
+            if (userId) loadAllJobs(userId);
+            // Clear session flags
+            sessionStorage.removeItem('currentJobId');
+            sessionStorage.removeItem('currentJobMeta');
+            return true; // Signal to stop polling
+        }
+        return false;
+    } catch (err) {
+        console.error('Poll error:', err);
+        return false;
+    }
 }
 
 function updateCurrentJobUI(job) {
@@ -210,6 +217,7 @@ async function loadAllJobs(userId) {
 function buildJobCard(job) {
     const card = document.createElement('div');
     card.className = 'job-card';
+    card.id = `job-card-${job.jobId}`;
 
     const statusBadge = buildStatusBadge(job.status);
     const metaHtml    = buildMetaHtml(job);
@@ -224,7 +232,7 @@ function buildJobCard(job) {
             </div>
             ${statusBadge}
         </div>
-        <div class="download-section mt-2" id="download-${job.jobId}">
+        <div class="d-flex align-items-center gap-2 mt-2" id="download-${job.jobId}">
             ${job.status === 'COMPLETE' && job.outputKey
                 ? `<button class="btn btn-sm btn-outline-primary"
                            onclick="handleDownload('${job.outputKey}', '${job.jobId}')">
@@ -234,6 +242,10 @@ function buildJobCard(job) {
             ${job.status === 'FAILED'
                 ? `<small class="text-danger">${job.errorMessage || 'Processing failed'}</small>`
                 : ''}
+            <button class="btn btn-sm btn-outline-danger ms-auto"
+                    onclick="handleDeleteJob('${job.jobId}', '${job.outputKey || ''}')">
+                &#128465; Delete
+            </button>
         </div>
     `;
 
@@ -344,6 +356,42 @@ function setupLogout() {
 
 function redirectToLogin() {
     window.location.href = 'index.html';
+}
+
+
+// ─── Delete Job ───────────────────────────────────────────────────────────────
+
+async function handleDeleteJob(jobId, outputKey) {
+    if (!confirm('Delete this job? This cannot be undone.')) return;
+
+    const card = document.getElementById(`job-card-${jobId}`);
+    if (card) card.style.opacity = '0.5';
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
+            method:  'DELETE',
+            headers: { 'Authorization': idToken },
+        });
+
+        if (response.ok) {
+            // Remove the card from the DOM
+            if (card) card.remove();
+
+            // Show empty state if no cards left
+            const listEl = document.getElementById('jobs-list');
+            if (listEl && listEl.children.length === 0) {
+                listEl.classList.add('d-none');
+                document.getElementById('jobs-empty').classList.remove('d-none');
+            }
+        } else {
+            if (card) card.style.opacity = '1';
+            alert('Failed to delete job. Please try again.');
+        }
+    } catch (err) {
+        console.error('Delete error:', err);
+        if (card) card.style.opacity = '1';
+        alert('Failed to delete job. Please try again.');
+    }
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
