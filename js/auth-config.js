@@ -11,7 +11,7 @@ const AUTH_CONFIG = {
     // The Cognito Hosted UI domain (for login redirects)
     // Found in Cognito > User Pool > App integration > Domain
     // Looks like: https://voicecraft-web.auth.eu-west-2.amazoncognito.com
-    hostedUiDomain: 'https://voicecraft-deanwaring.auth.eu-west-2.amazoncognito.com',
+    hostedUiDomain: 'https://eu-west-29g6wvet1n.auth.eu-west-2.amazoncognito.com',
 
     // Where Cognito sends the user after login
     callbackUrl:   'https://daikdlt9atbtt.cloudfront.net/callback.html',
