@@ -1,44 +1,25 @@
 /**
  * VoiceCraft — Jobs Page Script
- *
- * Responsibilities:
- *   1. Verify the user is authenticated (redirect to login if not)
- *   2. Show progress for the current job (if arriving from form submission)
- *   3. List all past jobs from DynamoDB via the jobs Lambda
- *   4. Generate pre-signed S3 download URLs via the download Lambda
- *
- * Dependencies (loaded before this in jobs.html):
- *   - amazon-cognito-identity-js  → AmazonCognitoIdentity
- *   - aws-sdk                     → AWS
- *   - auth-config.js              → AUTH_CONFIG
  */
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-// API Gateway base URL — update this after you create the API Gateway endpoint
-const API_BASE_URL = AUTH_CONFIG.apiBaseUrl;
-
-// How often to poll for job status updates (milliseconds)
+const API_BASE_URL    = AUTH_CONFIG.apiBaseUrl;
 const POLL_INTERVAL_MS = 4000;
 
-// ─── State ────────────────────────────────────────────────────────────────────
 const userPool = new AmazonCognitoIdentity.CognitoUserPool({
     UserPoolId: AUTH_CONFIG.userPoolId,
     ClientId:   AUTH_CONFIG.clientId,
 });
 
-let currentJobId  = null;
-let pollTimer     = null;
-let idToken       = null; // Cached for API calls
+let currentJobId = null;
+let pollTimer    = null;
+let idToken      = null;
 
-// ─── Initialisation ───────────────────────────────────────────────────────────
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
     checkAuthAndInit();
 });
 
-/**
- * Verify the session is valid before showing the page.
- * Redirects to login if not authenticated.
- */
 function checkAuthAndInit() {
     const cognitoUser = userPool.getCurrentUser();
     if (!cognitoUser) { redirectToLogin(); return; }
@@ -46,14 +27,12 @@ function checkAuthAndInit() {
     cognitoUser.getSession((err, session) => {
         if (err || !session.isValid()) { redirectToLogin(); return; }
 
-        // Cache the ID token for API Gateway auth
         idToken = session.getIdToken().getJwtToken();
 
         const payload  = session.getIdToken().decodePayload();
         const email    = payload.email || '';
-        const userName = payload.name  || payload['cognito:username'] || email.split('@')[0];
+        const userName = payload.name || payload['cognito:username'] || email.split('@')[0];
 
-        // Show the page now auth is confirmed
         document.getElementById('auth-check').classList.add('d-none');
         document.getElementById('app').classList.remove('d-none');
 
@@ -66,73 +45,67 @@ function checkAuthAndInit() {
 }
 
 function initPage(userId) {
-    // Store userId in sessionStorage for use elsewhere
     sessionStorage.setItem('userId', userId);
 
-    // Check if we've just arrived from a form submission
     currentJobId = sessionStorage.getItem('currentJobId');
     const jobMeta = sessionStorage.getItem('currentJobMeta');
 
     if (currentJobId) {
-        console.log(`Resuming current job: ${currentJobId}`);
         showCurrentJobSection(currentJobId, jobMeta ? JSON.parse(jobMeta) : {});
         startPolling(currentJobId);
-    } else {
-        // No current job — hide the current job section entirely
-        const section = document.getElementById('current-job-section');
-        if (section) section.classList.add('d-none');
     }
+    // If no currentJobId, current-job-section stays d-none (set in HTML)
 
-    // Load all jobs for this user
     loadAllJobs(userId);
 }
 
-// ─── Current Job Progress ─────────────────────────────────────────────────────
+// ─── Current Job ──────────────────────────────────────────────────────────────
 
 function showCurrentJobSection(jobId, meta) {
     document.getElementById('current-job-section').classList.remove('d-none');
-
-    // Populate meta line
     const metaEl = document.getElementById('current-job-meta');
-    if (metaEl) {
-        metaEl.innerHTML = buildMetaHtml(meta);
-    }
+    if (metaEl) metaEl.innerHTML = buildMetaHtml(meta);
 }
 
-/**
- * Poll DynamoDB every POLL_INTERVAL_MS until the job is COMPLETE or FAILED.
- */
 async function startPolling(jobId) {
-    let pollFailCount = 0;
-
-    // Check immediately on load rather than waiting for the first interval tick
-    await pollOnce(jobId);
+    // Check immediately — don't wait 4 seconds for first result
+    const done = await pollOnce(jobId);
+    if (done) return;
 
     pollTimer = setInterval(async () => {
-        const done = await pollOnce(jobId);
-        if (done) clearInterval(pollTimer);
-
-        if (!done) {
-            pollFailCount = pollFailCount; // keep counting in pollOnce
-        }
+        const finished = await pollOnce(jobId);
+        if (finished) clearInterval(pollTimer);
     }, POLL_INTERVAL_MS);
 }
 
 async function pollOnce(jobId) {
     try {
-        const job = await fetchJob(jobId);
-        console.log(`Poll result for ${jobId}: ${job.status}`);
+        const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
+            headers: { 'Authorization': idToken },
+        });
+
+        // Job not found (deleted or never existed) — clear and hide
+        if (response.status === 404) {
+            console.log('Current job not found in DB — clearing');
+            sessionStorage.removeItem('currentJobId');
+            sessionStorage.removeItem('currentJobMeta');
+            document.getElementById('current-job-section').classList.add('d-none');
+            return true;
+        }
+
+        if (!response.ok) throw new Error(`API ${response.status}`);
+
+        const job = await response.json();
+        console.log(`Job ${jobId} status: ${job.status}`);
         updateCurrentJobUI(job);
 
         if (job.status === 'COMPLETE' || job.status === 'FAILED') {
-            // Refresh the all-jobs list so the new entry appears
+            // Reload the all-jobs list to include this job
             const userId = sessionStorage.getItem('userId');
             if (userId) loadAllJobs(userId);
-            // NOTE: we intentionally do NOT clear currentJobId here so that
-            // the current job card stays visible showing the complete/failed state.
-            // It gets cleared when the user submits a new job (in scripts.js).
-            return true; // Signal to stop polling
+            return true;
         }
+
         return false;
     } catch (err) {
         console.error('Poll error:', err);
@@ -143,31 +116,21 @@ async function pollOnce(jobId) {
 function updateCurrentJobUI(job) {
     const badge        = document.getElementById('current-job-badge');
     const progressWrap = document.getElementById('current-job-progress-wrap');
-    const statusMsg    = document.getElementById('current-job-status-msg');
     const downloadDiv  = document.getElementById('current-job-download');
     const downloadBtn  = document.getElementById('current-job-download-btn');
     const title        = document.getElementById('current-job-title');
 
     if (job.status === 'COMPLETE') {
-        // Update badge
         badge.textContent = 'Complete';
         badge.className   = 'badge rounded-pill badge-complete px-3 py-2';
-
-        // Swap progress bar for download button
         progressWrap.classList.add('d-none');
         downloadDiv.classList.remove('d-none');
-
-        // Update title
         if (title) title.textContent = 'Narration ready!';
 
-        // Get and set the pre-signed download URL
         if (job.outputKey) {
             getDownloadUrl(job.outputKey).then(url => {
-                if (url) {
-                    downloadBtn.href = url;
-                    downloadBtn.setAttribute('download', 'narration.mp3');
-                }
-            }).catch(err => console.error('Failed to get download URL:', err));
+                if (url) downloadBtn.href = url;
+            }).catch(console.error);
         }
 
     } else if (job.status === 'FAILED') {
@@ -175,16 +138,12 @@ function updateCurrentJobUI(job) {
         badge.className   = 'badge rounded-pill badge-failed px-3 py-2';
         progressWrap.classList.add('d-none');
         if (title) title.textContent = 'Job failed';
-        // Show error message where the progress bar was
         const errMsg = document.createElement('p');
-        errMsg.className = 'text-danger small mt-2 mb-0';
+        errMsg.className   = 'text-danger small mt-2 mb-0';
         errMsg.textContent = job.errorMessage || 'Processing failed. Please try again.';
         progressWrap.parentNode.appendChild(errMsg);
-
-    } else {
-        // Still PROCESSING or PENDING
-        if (statusMsg) statusMsg.textContent = 'Generating your audio narration with Amazon Polly...';
     }
+    // PROCESSING/PENDING: leave the animated bar as-is
 }
 
 // ─── All Jobs List ────────────────────────────────────────────────────────────
@@ -195,8 +154,18 @@ async function loadAllJobs(userId) {
     const emptyEl   = document.getElementById('jobs-empty');
     const errorEl   = document.getElementById('jobs-error');
 
+    // Reset state
+    listEl.classList.add('d-none');
+    emptyEl.classList.add('d-none');
+    errorEl.classList.add('d-none');
+    loadingEl.classList.remove('d-none');
+
     try {
-        const jobs = await fetchAllJobs(userId);
+        const response = await fetch(`${API_BASE_URL}/jobs?userId=${encodeURIComponent(userId)}`, {
+            headers: { 'Authorization': idToken },
+        });
+        if (!response.ok) throw new Error(`API ${response.status}`);
+        const jobs = await response.json();
 
         loadingEl.classList.add('d-none');
 
@@ -205,13 +174,10 @@ async function loadAllJobs(userId) {
             return;
         }
 
-        // Sort newest first
         jobs.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
         listEl.innerHTML = '';
-        for (const job of jobs) {
-            listEl.appendChild(buildJobCard(job));
-        }
+        for (const job of jobs) listEl.appendChild(buildJobCard(job));
         listEl.classList.remove('d-none');
 
     } catch (err) {
@@ -223,22 +189,20 @@ async function loadAllJobs(userId) {
 }
 
 function buildJobCard(job) {
-    const card = document.createElement('div');
+    const card  = document.createElement('div');
     card.className = 'job-card';
     card.id = `job-card-${job.jobId}`;
 
-    const statusBadge = buildStatusBadge(job.status);
-    const metaHtml    = buildMetaHtml(job);
-    const date        = job.createdAt ? new Date(job.createdAt).toLocaleString('en-GB') : 'Unknown date';
+    const date = job.createdAt ? new Date(job.createdAt).toLocaleString('en-GB') : 'Unknown date';
 
     card.innerHTML = `
         <div class="d-flex justify-content-between align-items-start mb-2">
             <div>
-                <span class="fw-semibold">Job ${job.jobId ? job.jobId.slice(0, 8) : 'Unknown'}...</span>
-                <div class="job-meta mt-1">${metaHtml}</div>
+                <span class="fw-semibold">Job ${(job.jobId || '').slice(0, 8)}...</span>
+                <div class="job-meta mt-1">${buildMetaHtml(job)}</div>
                 <div class="job-meta mt-1"><span>&#128197; ${date}</span></div>
             </div>
-            ${statusBadge}
+            ${buildStatusBadge(job.status)}
         </div>
         <div class="d-flex align-items-center gap-2 mt-2" id="download-${job.jobId}">
             ${job.status === 'COMPLETE' && job.outputKey
@@ -251,12 +215,11 @@ function buildJobCard(job) {
                 ? `<small class="text-danger">${job.errorMessage || 'Processing failed'}</small>`
                 : ''}
             <button class="btn btn-sm btn-outline-danger ms-auto"
-                    onclick="handleDeleteJob('${job.jobId}', '${job.outputKey || ''}')">
+                    onclick="handleDeleteJob('${job.jobId}')">
                 &#128465; Delete
             </button>
         </div>
     `;
-
     return card;
 }
 
@@ -280,27 +243,18 @@ function buildMetaHtml(meta) {
 }
 
 function formatAudioLabel(audio) {
-    const map = {
-        'brown-noise':    'Brown Noise',
-        'music':          'Music',
-        'calming-sounds': 'Calming Sounds',
-    };
-    return map[audio] || capitalise(audio);
+    return { 'brown-noise': 'Brown Noise', 'music': 'Music', 'calming-sounds': 'Calming Sounds' }[audio] || capitalise(audio || '');
 }
 
-// ─── Download Handling ────────────────────────────────────────────────────────
+// ─── Download ─────────────────────────────────────────────────────────────────
 
 async function handleDownload(outputKey, jobId) {
     const btn = document.querySelector(`#download-${jobId} button`);
     if (btn) { btn.disabled = true; btn.textContent = 'Getting link...'; }
-
     try {
         const url = await getDownloadUrl(outputKey);
-        if (url) {
-            window.open(url, '_blank');
-        } else {
-            alert('Could not generate download link. Please try again.');
-        }
+        if (url) window.open(url, '_blank');
+        else alert('Could not generate download link. Please try again.');
     } catch (err) {
         console.error('Download error:', err);
         alert('Could not generate download link. Please try again.');
@@ -309,67 +263,18 @@ async function handleDownload(outputKey, jobId) {
     }
 }
 
-/**
- * Call the API Gateway endpoint to get a pre-signed S3 URL for the given key.
- * The URL is valid for 15 minutes.
- */
 async function getDownloadUrl(outputKey) {
     const response = await fetch(`${API_BASE_URL}/download-url?key=${encodeURIComponent(outputKey)}`, {
         headers: { 'Authorization': idToken },
     });
-
-    if (!response.ok) throw new Error(`API returned ${response.status}`);
-
+    if (!response.ok) throw new Error(`API ${response.status}`);
     const data = await response.json();
     return data.url || null;
 }
 
-// ─── API Calls ────────────────────────────────────────────────────────────────
+// ─── Delete ───────────────────────────────────────────────────────────────────
 
-/**
- * Fetch a single job record by ID from the jobs API.
- */
-async function fetchJob(jobId) {
-    const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
-        headers: { 'Authorization': idToken },
-    });
-    if (!response.ok) throw new Error(`API returned ${response.status}`);
-    return response.json();
-}
-
-/**
- * Fetch all jobs for the current user from the jobs API.
- */
-async function fetchAllJobs(userId) {
-    const response = await fetch(`${API_BASE_URL}/jobs?userId=${encodeURIComponent(userId)}`, {
-        headers: { 'Authorization': idToken },
-    });
-    if (!response.ok) throw new Error(`API returned ${response.status}`);
-    return response.json();
-}
-
-// ─── Auth ─────────────────────────────────────────────────────────────────────
-
-function setupLogout() {
-    const btn = document.getElementById('logout-btn');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-        if (!confirm('Are you sure you want to sign out?')) return;
-        const cognitoUser = userPool.getCurrentUser();
-        if (cognitoUser) cognitoUser.signOut();
-        sessionStorage.clear();
-        redirectToLogin();
-    });
-}
-
-function redirectToLogin() {
-    window.location.href = 'index.html';
-}
-
-
-// ─── Delete Job ───────────────────────────────────────────────────────────────
-
-async function handleDeleteJob(jobId, outputKey) {
+async function handleDeleteJob(jobId) {
     if (!confirm('Delete this job? This cannot be undone.')) return;
 
     const card = document.getElementById(`job-card-${jobId}`);
@@ -382,10 +287,7 @@ async function handleDeleteJob(jobId, outputKey) {
         });
 
         if (response.ok) {
-            // Remove the card from the DOM
             if (card) card.remove();
-
-            // Show empty state if no cards left
             const listEl = document.getElementById('jobs-list');
             if (listEl && listEl.children.length === 0) {
                 listEl.classList.add('d-none');
@@ -402,9 +304,24 @@ async function handleDeleteJob(jobId, outputKey) {
     }
 }
 
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+function setupLogout() {
+    const btn = document.getElementById('logout-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+        if (!confirm('Are you sure you want to sign out?')) return;
+        const cognitoUser = userPool.getCurrentUser();
+        if (cognitoUser) cognitoUser.signOut();
+        sessionStorage.clear();
+        redirectToLogin();
+    });
+}
+
+function redirectToLogin() { window.location.href = 'index.html'; }
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
 function capitalise(str) {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1);
+    return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
 }
