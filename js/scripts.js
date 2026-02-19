@@ -229,10 +229,16 @@ async function handleVideoFormSubmit(e) {
 
         console.log(`Job submitted — ID: ${jobId} | Key: ${s3Key}`);
 
-        resetButton(submitBtn, 'CREATE VIDEO');
-        showFormSuccess(jobId);
-        videoForm.reset();
-        fileNameDisplay.textContent = '';
+        // Store job info so jobs.html can show the current job progress
+        sessionStorage.setItem('currentJobId',  jobId);
+        sessionStorage.setItem('currentJobMeta', JSON.stringify({
+            voice:    voice.value,
+            category: category.value,
+            audio:    audio.value,
+        }));
+
+        // Redirect to the jobs page to show progress
+        window.location.href = 'jobs.html';
 
     } catch (err) {
         console.error('Upload error:', err);
