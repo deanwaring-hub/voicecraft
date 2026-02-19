@@ -66,13 +66,21 @@ function checkAuthAndInit() {
 }
 
 function initPage(userId) {
+    // Store userId in sessionStorage for use elsewhere
+    sessionStorage.setItem('userId', userId);
+
     // Check if we've just arrived from a form submission
     currentJobId = sessionStorage.getItem('currentJobId');
     const jobMeta = sessionStorage.getItem('currentJobMeta');
 
     if (currentJobId) {
+        console.log(`Resuming current job: ${currentJobId}`);
         showCurrentJobSection(currentJobId, jobMeta ? JSON.parse(jobMeta) : {});
         startPolling(currentJobId);
+    } else {
+        // No current job — hide the current job section entirely
+        const section = document.getElementById('current-job-section');
+        if (section) section.classList.add('d-none');
     }
 
     // Load all jobs for this user
@@ -117,12 +125,12 @@ async function pollOnce(jobId) {
         updateCurrentJobUI(job);
 
         if (job.status === 'COMPLETE' || job.status === 'FAILED') {
-            // Refresh the all-jobs list
+            // Refresh the all-jobs list so the new entry appears
             const userId = sessionStorage.getItem('userId');
             if (userId) loadAllJobs(userId);
-            // Clear session flags
-            sessionStorage.removeItem('currentJobId');
-            sessionStorage.removeItem('currentJobMeta');
+            // NOTE: we intentionally do NOT clear currentJobId here so that
+            // the current job card stays visible showing the complete/failed state.
+            // It gets cleared when the user submits a new job (in scripts.js).
             return true; // Signal to stop polling
         }
         return false;
