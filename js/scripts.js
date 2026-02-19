@@ -1,235 +1,184 @@
 /**
- * VoiceCraft - Text to Video Application
- * JavaScript Module for Login and Video Creation
+ * VoiceCraft - Main App Script
+ * Handles auth state, login/logout, and video form submission.
+ * Depends on: auth-config.js (loaded before this script)
  */
 
-// DOM Elements
-const loginScreen = document.getElementById('login-screen');
-const mainScreen = document.getElementById('main-screen');
-const loginForm = document.getElementById('login-form');
-const videoForm = document.getElementById('video-form');
-const logoutBtn = document.getElementById('logout-btn');
+// ─── DOM Elements ────────────────────────────────────────────────────────────
+const loginScreen     = document.getElementById('login-screen');
+const mainScreen      = document.getElementById('main-screen');
+const loginForm       = document.getElementById('login-form');
+const videoForm       = document.getElementById('video-form');
+const logoutBtn       = document.getElementById('logout-btn');
 const userNameDisplay = document.getElementById('user-name');
-const textFileInput = document.getElementById('text-file');
-const fileButton = document.getElementById('file-button');
+const textFileInput   = document.getElementById('text-file');
+const fileButton      = document.getElementById('file-button');
 const fileNameDisplay = document.getElementById('file-name');
-const loginErrorDiv = document.getElementById('login-error');
+const loginErrorDiv   = document.getElementById('login-error');
 const formSuccessAlert = document.getElementById('form-success');
-const formErrorAlert = document.getElementById('form-error');
+const formErrorAlert  = document.getElementById('form-error');
 
-// Demo credentials for testing
-const DEMO_EMAIL = 'demo@example.com';
-const DEMO_PASSWORD = 'password123';
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-// Maximum file size (5MB)
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+// ─── App Initialisation ──────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    setupFormValidation();
+    initializeApp();
+});
 
-/**
- * Initialize the application
- */
 function initializeApp() {
-    checkUserSession();
+    checkAuthState();
     setupEventListeners();
-    setupKeyboardNavigation();
 }
 
 /**
- * Check if user has an active session
+ * Check whether the user is logged in.
+ * We store the id_token and user info in sessionStorage after the
+ * callback page exchanges the auth code.
  */
-function checkUserSession() {
+function checkAuthState() {
+    const idToken   = sessionStorage.getItem('id_token');
     const userEmail = sessionStorage.getItem('userEmail');
-    if (userEmail) {
+
+    if (idToken && userEmail) {
+        // Basic expiry check — the token payload is base64 encoded JSON
+        try {
+            const payload = JSON.parse(atob(idToken.split('.')[1]));
+            const nowSecs = Math.floor(Date.now() / 1000);
+            if (payload.exp && payload.exp < nowSecs) {
+                // Token has expired — clear session and show login
+                clearSession();
+                showLoginScreen();
+                return;
+            }
+        } catch (e) {
+            // Malformed token — clear and show login
+            clearSession();
+            showLoginScreen();
+            return;
+        }
         showMainScreen(userEmail);
     } else {
         showLoginScreen();
     }
 }
 
-/**
- * Setup event listeners
- */
+// ─── Event Listeners ─────────────────────────────────────────────────────────
 function setupEventListeners() {
-    // Login form submission
-    loginForm.addEventListener('submit', handleLogin);
-
-    // Logout button
-    logoutBtn.addEventListener('click', handleLogout);
-
-    // Video form submission
-    videoForm.addEventListener('submit', handleVideoFormSubmit);
-
-    // File input
-    fileButton.addEventListener('click', () => textFileInput.click());
-    textFileInput.addEventListener('change', handleFileSelection);
-
-    // Form validation
-    loginForm.addEventListener('change', clearLoginError);
-    videoForm.addEventListener('input', clearFormErrors);
+    if (loginForm)  loginForm.addEventListener('submit', handleLogin);
+    if (logoutBtn)  logoutBtn.addEventListener('click', handleLogout);
+    if (videoForm)  videoForm.addEventListener('submit', handleVideoFormSubmit);
+    if (fileButton) fileButton.addEventListener('click', () => textFileInput.click());
+    if (textFileInput) textFileInput.addEventListener('change', handleFileSelection);
+    if (loginForm)  loginForm.addEventListener('change', clearLoginError);
+    if (videoForm)  videoForm.addEventListener('input', clearFormErrors);
 }
 
+// ─── Login ───────────────────────────────────────────────────────────────────
 /**
- * Setup keyboard navigation and accessibility
- */
-function setupKeyboardNavigation() {
-    // Handle form submission with Enter key in specific fields
-    const formInputs = document.querySelectorAll('.form-control, .form-check-input');
-    formInputs.forEach(input => {
-        input.addEventListener('keydown', (e) => {
-            // Allow Tab for natural navigation
-            // Allow Enter only for explicit submit buttons
-        });
-    });
-}
-
-/**
- * Handle login form submission
+ * Redirect to Cognito Hosted UI login page.
+ * Cognito will authenticate the user and redirect back to callback.html
+ * with a ?code= parameter.
  */
 function handleLogin(e) {
     e.preventDefault();
 
-    const emailInput = document.getElementById('email');
-    const passwordInput = document.getElementById('password');
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
+    const loginUrl =
+        `${AUTH_CONFIG.hostedUiDomain}/login` +
+        `?client_id=${AUTH_CONFIG.clientId}` +
+        `&response_type=code` +
+        `&scope=${AUTH_CONFIG.scopes}` +
+        `&redirect_uri=${encodeURIComponent(AUTH_CONFIG.callbackUrl)}`;
 
-    // Clear previous errors
-    clearLoginError();
+    window.location.href = loginUrl;
+}
 
-    // Validate form
-    if (!loginForm.checkValidity()) {
-        e.stopPropagation();
-        loginForm.classList.add('was-validated');
-        updateFieldError(emailInput, 'Please enter a valid email address.');
-        updateFieldError(passwordInput, 'Please enter your password.');
-        return;
+// ─── Logout ──────────────────────────────────────────────────────────────────
+function handleLogout() {
+    if (!confirm('Are you sure you want to sign out?')) return;
+
+    clearSession();
+
+    // Redirect to Cognito logout endpoint so the Cognito session cookie
+    // is also cleared — prevents auto-login on next visit
+    const logoutUrl =
+        `${AUTH_CONFIG.hostedUiDomain}/logout` +
+        `?client_id=${AUTH_CONFIG.clientId}` +
+        `&logout_uri=${encodeURIComponent(AUTH_CONFIG.logoutUrl)}`;
+
+    window.location.href = logoutUrl;
+}
+
+function clearSession() {
+    sessionStorage.removeItem('id_token');
+    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem('userEmail');
+    sessionStorage.removeItem('userName');
+}
+
+// ─── Screen Management ───────────────────────────────────────────────────────
+function showMainScreen(userEmail) {
+    const userName = sessionStorage.getItem('userName') || userEmail.split('@')[0];
+    if (userNameDisplay) {
+        userNameDisplay.textContent = `Welcome, ${capitalizeString(userName)}`;
     }
+    loginScreen.classList.add('d-none');
+    mainScreen.classList.remove('d-none');
 
-    // Validate credentials (demo only - in production, use backend authentication)
-    if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
-        // Store session
-        sessionStorage.setItem('userEmail', email);
-        sessionStorage.setItem('userName', email.split('@')[0]);
-        
-        // Show main screen
-        showMainScreen(email);
-    } else {
-        // Show error message
-        showLoginError('Invalid email or password. Please try again.');
-        passwordInput.value = '';
-        passwordInput.focus();
+    const mainContent = document.getElementById('main-content');
+    if (mainContent) {
+        mainContent.focus();
+        mainContent.scrollIntoView();
     }
 }
 
-/**
- * Display login error message
- */
+function showLoginScreen() {
+    mainScreen.classList.add('d-none');
+    loginScreen.classList.remove('d-none');
+
+    if (loginForm) {
+        loginForm.reset();
+        clearFieldErrors();
+        clearLoginError();
+    }
+    if (videoForm)       videoForm.reset();
+    if (fileNameDisplay) fileNameDisplay.textContent = '';
+
+    const emailInput = document.getElementById('email');
+    if (emailInput) emailInput.focus();
+}
+
+// ─── Error Helpers ───────────────────────────────────────────────────────────
 function showLoginError(message) {
+    if (!loginErrorDiv) return;
     loginErrorDiv.textContent = message;
     loginErrorDiv.classList.remove('d-none');
     loginErrorDiv.setAttribute('role', 'alert');
     loginErrorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-/**
- * Clear login error message
- */
 function clearLoginError() {
+    if (!loginErrorDiv) return;
     loginErrorDiv.classList.add('d-none');
     loginErrorDiv.removeAttribute('role');
 }
 
-/**
- * Update field error message
- */
-function updateFieldError(field, message) {
-    const errorId = `${field.id}-error`;
-    const errorElement = document.getElementById(errorId);
-    if (errorElement) {
-        errorElement.textContent = message;
-    }
-}
-
-/**
- * Clear field error messages
- */
 function clearFieldErrors() {
-    const errorElements = document.querySelectorAll('.invalid-feedback');
-    errorElements.forEach(el => {
-        el.textContent = '';
-    });
-    loginForm.classList.remove('was-validated');
+    document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+    if (loginForm) loginForm.classList.remove('was-validated');
 }
 
-/**
- * Show main application screen
- */
-function showMainScreen(userEmail) {
-    const userName = sessionStorage.getItem('userName') || userEmail.split('@')[0];
-    userNameDisplay.textContent = `Welcome, ${capitalizeString(userName)}`;
-    
-    loginScreen.classList.add('d-none');
-    mainScreen.classList.remove('d-none');
-    
-    // Focus management for accessibility
-    const mainContent = document.getElementById('main-content');
-    mainContent.focus();
-    mainContent.scrollIntoView();
+function updateFieldError(field, message) {
+    if (!field) return;
+    const errorEl = document.getElementById(`${field.id}-error`);
+    if (errorEl) errorEl.textContent = message;
 }
 
-/**
- * Show login screen
- */
-function showLoginScreen() {
-    mainScreen.classList.add('d-none');
-    loginScreen.classList.remove('d-none');
-    
-    // Clear form and reset validation
-    loginForm.reset();
-    clearFieldErrors();
-    clearLoginError();
-    videoForm.reset();
-    fileNameDisplay.textContent = '';
-    
-    // Focus on email input
-    document.getElementById('email').focus();
-}
-
-/**
- * Handle logout
- */
-function handleLogout() {
-    // Confirm logout
-    if (confirm('Are you sure you want to sign out?')) {
-        // Clear session
-        sessionStorage.clear();
-        
-        // Return to login
-        showLoginScreen();
-        
-        // Announce logout to screen readers
-        const announcement = document.createElement('div');
-        announcement.setAttribute('role', 'status');
-        announcement.setAttribute('aria-live', 'polite');
-        announcement.className = 'visually-hidden';
-        announcement.textContent = 'You have been signed out successfully.';
-        document.body.appendChild(announcement);
-        
-        setTimeout(() => announcement.remove(), 1000);
-    }
-}
-
-/**
- * Handle file selection
- */
+// ─── File Handling ───────────────────────────────────────────────────────────
 function handleFileSelection(e) {
     const file = e.target.files[0];
+    if (!file) { fileNameDisplay.textContent = ''; return; }
 
-    if (!file) {
-        fileNameDisplay.textContent = '';
-        return;
-    }
-
-    // Validate file type
     if (!file.name.endsWith('.txt')) {
         updateFieldError(textFileInput, 'Please select a .txt file.');
         textFileInput.value = '';
@@ -237,23 +186,17 @@ function handleFileSelection(e) {
         return;
     }
 
-    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
-        const maxSizeMB = MAX_FILE_SIZE / (1024 * 1024);
-        updateFieldError(textFileInput, `File size exceeds ${maxSizeMB}MB limit.`);
+        updateFieldError(textFileInput, `File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`);
         textFileInput.value = '';
         fileNameDisplay.textContent = '';
         return;
     }
 
-    // Display file name and clear errors
     fileNameDisplay.textContent = `✓ ${file.name} (${formatFileSize(file.size)})`;
     updateFieldError(textFileInput, '');
 }
 
-/**
- * Format file size for display
- */
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -262,125 +205,59 @@ function formatFileSize(bytes) {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 }
 
-/**
- * Handle video form submission
- */
+// ─── Video Form ──────────────────────────────────────────────────────────────
 function handleVideoFormSubmit(e) {
     e.preventDefault();
-
-    // Clear previous alerts
     formSuccessAlert.classList.add('d-none');
     formErrorAlert.classList.add('d-none');
 
-    // Get form data
     const category = document.querySelector('input[name="category"]:checked');
-    const audio = document.querySelector('input[name="audio"]:checked');
-    const file = textFileInput.files[0];
+    const audio    = document.querySelector('input[name="audio"]:checked');
+    const file     = textFileInput.files[0];
+    let   isValid  = true;
+    const errors   = [];
 
-    // Validate all fields
-    let isValid = true;
-    const errors = [];
+    if (!category) { isValid = false; errors.push('Please select a content category.'); }
+    if (!audio)    { isValid = false; errors.push('Please select background audio.'); }
+    if (!file)     { isValid = false; errors.push('Please upload a text file.'); }
 
-    if (!category) {
-        isValid = false;
-        errors.push('Please select a content category.');
-        updateFieldError(document.getElementById('category-error'), 'Category is required.');
-    }
+    if (!isValid) { showFormError(errors.join(' ')); return; }
 
-    if (!audio) {
-        isValid = false;
-        errors.push('Please select background audio.');
-        updateFieldError(document.getElementById('audio-error'), 'Audio selection is required.');
-    }
-
-    if (!file) {
-        isValid = false;
-        errors.push('Please upload a text file.');
-        updateFieldError(textFileInput, 'File is required.');
-    }
-
-    if (!isValid) {
-        showFormError(errors.join(' '));
-        return;
-    }
-
-    // Create FormData object for file upload
     const formData = new FormData();
     formData.append('category', category.value);
     formData.append('audio', audio.value);
     formData.append('textFile', file);
 
-    // Submit to backend (currently logs to console for demo)
     submitVideoCreationRequest(formData);
 }
 
-/**
- * Submit video creation request to backend
- */
 function submitVideoCreationRequest(formData) {
-    // Show loading state
-    const submitBtn = document.getElementById('submit-btn');
-    const originalText = submitBtn.textContent;
+    const submitBtn  = document.getElementById('submit-btn');
+    const origText   = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Creating...';
 
-    // Get form data for logging
-    const category = formData.get('category');
-    const audio = formData.get('audio');
-    const file = formData.get('textFile');
-
-    // Simulate API call (in production, send to your AWS backend)
-    console.log('Submitting video creation request:', {
-        category,
-        audio,
-        fileName: file.name,
-        fileSize: file.size,
-        timestamp: new Date().toISOString()
-    });
-
-    // Simulate network delay
+    // TODO: Replace setTimeout with a real fetch() to your AWS API Gateway endpoint
+    // The access_token is in sessionStorage.getItem('access_token') — include it
+    // as an Authorization: Bearer header on that request.
     setTimeout(() => {
-        // Reset button state
         submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
-
-        // Show success message
+        submitBtn.textContent = origText;
         showFormSuccess();
-
-        // Reset form
         videoForm.reset();
         fileNameDisplay.textContent = '';
-
-        // In production, you would:
-        // 1. Send FormData to your AWS backend
-        // 2. Receive a job ID
-        // 3. Store job ID for tracking
-        // 4. Redirect to job tracking page
-
-        // Announce success to screen readers
-        announceToScreenReaders('Video creation request submitted successfully. You will be notified when your video is ready.');
-
+        announceToScreenReaders('Video creation request submitted successfully.');
     }, 1500);
 }
 
-/**
- * Show form success message
- */
 function showFormSuccess() {
     formSuccessAlert.classList.remove('d-none');
     formErrorAlert.classList.add('d-none');
     formSuccessAlert.setAttribute('role', 'status');
     formSuccessAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    // Auto-hide success message after 5 seconds
-    setTimeout(() => {
-        formSuccessAlert.classList.add('d-none');
-    }, 5000);
+    setTimeout(() => formSuccessAlert.classList.add('d-none'), 5000);
 }
 
-/**
- * Show form error message
- */
 function showFormError(message) {
     formErrorAlert.textContent = message;
     formErrorAlert.classList.remove('d-none');
@@ -389,80 +266,41 @@ function showFormError(message) {
     formErrorAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-/**
- * Clear form error messages
- */
 function clearFormErrors() {
     formErrorAlert.classList.add('d-none');
     formErrorAlert.removeAttribute('role');
-    
-    const errorElements = document.querySelectorAll('#video-form .invalid-feedback');
-    errorElements.forEach(el => {
-        el.textContent = '';
-    });
+    document.querySelectorAll('#video-form .invalid-feedback').forEach(el => el.textContent = '');
 }
 
-/**
- * Announce message to screen readers
- */
-function announceToScreenReaders(message) {
-    const announcement = document.createElement('div');
-    announcement.setAttribute('role', 'status');
-    announcement.setAttribute('aria-live', 'polite');
-    announcement.setAttribute('aria-atomic', 'true');
-    announcement.className = 'visually-hidden';
-    announcement.textContent = message;
-    document.body.appendChild(announcement);
-
-    // Remove after announcement
-    setTimeout(() => announcement.remove(), 2000);
-}
-
-/**
- * Capitalize first letter of string
- */
+// ─── Utilities ───────────────────────────────────────────────────────────────
 function capitalizeString(str) {
     return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-/**
- * Setup form validation
- */
+function announceToScreenReaders(message) {
+    const el = document.createElement('div');
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-atomic', 'true');
+    el.className = 'visually-hidden';
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2000);
+}
+
 function setupFormValidation() {
-    // Bootstrap form validation
-    const forms = document.querySelectorAll('.needs-validation');
-    Array.from(forms).forEach(form => {
-        form.addEventListener('submit', event => {
+    document.querySelectorAll('.needs-validation').forEach(form => {
+        form.addEventListener('submit', e => {
             if (!form.checkValidity()) {
-                event.preventDefault();
-                event.stopPropagation();
+                e.preventDefault();
+                e.stopPropagation();
             }
             form.classList.add('was-validated');
         }, false);
     });
 }
 
-/**
- * Initialize on page load
- */
-document.addEventListener('DOMContentLoaded', () => {
-    setupFormValidation();
-    initializeApp();
-});
-
-/**
- * Handle page refresh - maintain session
- */
-window.addEventListener('beforeunload', () => {
-    // Session is maintained in sessionStorage
-});
-
-/**
- * Handle visibility change
- */
+// Re-check auth if user switches back to this tab
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        // Re-check session when tab becomes visible
-        checkUserSession();
-    }
+    if (document.visibilityState === 'visible') checkAuthState();
 });

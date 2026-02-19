@@ -14,57 +14,104 @@
     <div class="login-container d-flex align-items-center justify-content-center min-vh-100">
         <div class="login-card card shadow-lg">
             <div class="card-body p-5">
-                <div class="text-center mb-4">
-                    <h1 class="login-title">Create an account</h1>
-                    <p class="login-subtitle text-muted">Join VoiceCraft to create AI-driven videos</p>
+
+                <!-- ── Step 1: Registration Form ── -->
+                <div id="signup-step">
+                    <div class="text-center mb-4">
+                        <h1 class="login-title">Create an account</h1>
+                        <p class="login-subtitle text-muted">Join VoiceCraft to create AI-driven videos</p>
+                    </div>
+
+                    <form id="signup-form" class="needs-validation" novalidate>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Full Name</label>
+                            <input type="text" id="name" name="name" class="form-control form-control-lg"
+                                   placeholder="Your full name" required aria-describedby="name-error">
+                            <div id="name-error" class="invalid-feedback d-block"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="signup-email" class="form-label">Email</label>
+                            <input type="email" id="signup-email" name="email" class="form-control form-control-lg"
+                                   placeholder="you@example.com" required aria-describedby="signup-email-error">
+                            <div id="signup-email-error" class="invalid-feedback d-block"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="signup-password" class="form-label">Password</label>
+                            <input type="password" id="signup-password" name="password" class="form-control form-control-lg"
+                                   placeholder="At least 8 characters" required aria-describedby="signup-password-error">
+                            <div id="signup-password-error" class="invalid-feedback d-block"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="signup-password-confirm" class="form-label">Confirm Password</label>
+                            <input type="password" id="signup-password-confirm" name="passwordConfirm"
+                                   class="form-control form-control-lg" placeholder="Confirm your password"
+                                   required aria-describedby="signup-password-confirm-error">
+                            <div id="signup-password-confirm-error" class="invalid-feedback d-block"></div>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" id="terms" class="form-check-input" required>
+                            <label for="terms" class="form-check-label">
+                                I agree to the <a href="#">Terms</a> and <a href="#">Privacy Policy</a>
+                            </label>
+                            <div class="invalid-feedback d-block" id="terms-error"></div>
+                        </div>
+
+                        <div id="signup-error" class="alert alert-danger d-none" role="alert"></div>
+
+                        <div class="d-grid gap-2 mb-3">
+                            <button type="submit" class="btn btn-primary btn-lg">Create Account</button>
+                            <a href="index.html" class="btn btn-outline-secondary btn-lg">Back to Sign In</a>
+                        </div>
+                    </form>
                 </div>
 
-                <form id="signup-form" class="needs-validation" novalidate aria-labelledby="signup-form">
-                    <div class="mb-3">
-                        <label for="name" class="form-label">Full Name</label>
-                        <input type="text" id="name" name="name" class="form-control form-control-lg" placeholder="Your full name" required aria-describedby="name-error">
-                        <div id="name-error" class="invalid-feedback d-block"></div>
+                <!-- ── Step 2: Email Verification ── -->
+                <div id="verify-step" class="d-none">
+                    <div class="text-center mb-4">
+                        <div class="fs-1 mb-2">📧</div>
+                        <h1 class="login-title">Check your email</h1>
+                        <p class="login-subtitle text-muted">
+                            We sent a 6-digit verification code to<br>
+                            <strong id="verify-email-display"></strong>
+                        </p>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="signup-email" class="form-label">Email</label>
-                        <input type="email" id="signup-email" name="email" class="form-control form-control-lg" placeholder="you@example.com" required aria-describedby="signup-email-error">
-                        <div id="signup-email-error" class="invalid-feedback d-block"></div>
-                    </div>
+                    <form id="verify-form" novalidate>
+                        <div class="mb-3">
+                            <label for="verify-code" class="form-label">Verification Code</label>
+                            <input type="text" id="verify-code" class="form-control form-control-lg text-center"
+                                   placeholder="123456" maxlength="6" inputmode="numeric"
+                                   autocomplete="one-time-code" aria-describedby="verify-code-error">
+                            <div id="verify-code-error" class="invalid-feedback d-block"></div>
+                        </div>
 
-                    <div class="mb-3">
-                        <label for="signup-password" class="form-label">Password</label>
-                        <input type="password" id="signup-password" name="password" class="form-control form-control-lg" placeholder="Create a password" required aria-describedby="signup-password-error">
-                        <div id="signup-password-error" class="invalid-feedback d-block"></div>
-                    </div>
+                        <div id="verify-error" class="alert d-none" role="alert"></div>
 
-                    <div class="mb-3">
-                        <label for="signup-password-confirm" class="form-label">Confirm Password</label>
-                        <input type="password" id="signup-password-confirm" name="passwordConfirm" class="form-control form-control-lg" placeholder="Confirm your password" required aria-describedby="signup-password-confirm-error">
-                        <div id="signup-password-confirm-error" class="invalid-feedback d-block"></div>
-                    </div>
+                        <div class="d-grid gap-2 mb-3">
+                            <button type="submit" class="btn btn-primary btn-lg">Verify Email</button>
+                        </div>
+                    </form>
 
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" id="terms" class="form-check-input" required>
-                        <label for="terms" class="form-check-label">I agree to the <a href="#">Terms</a> and <a href="#">Privacy Policy</a></label>
-                        <div class="invalid-feedback d-block" id="terms-error"></div>
-                    </div>
+                    <p class="text-center text-muted small">
+                        Didn't receive it? Check your spam folder or
+                        <button id="resend-code-btn" class="btn btn-link btn-sm p-0">resend code</button>.
+                    </p>
+                </div>
 
-                    <div id="signup-error" class="alert alert-danger d-none" role="alert"></div>
-
-                    <div class="d-grid gap-2 mb-3">
-                        <button type="submit" class="btn btn-primary btn-lg">Create Account</button>
-                        <a href="index.html" class="btn btn-outline-secondary btn-lg" role="button">Back to Sign In</a>
-                    </div>
-                </form>
-
-                <hr class="my-4">
-                <p class="text-center text-muted small">We will integrate this form with AWS Cognito. For now this is a demo sign up.</p>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Amazon Cognito Identity SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6/dist/amazon-cognito-identity.min.js"></script>
+
+    <script src="js/auth-config.js"></script>
     <script src="js/signup.js"></script>
 </body>
 </html>
