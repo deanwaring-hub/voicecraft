@@ -1,10 +1,20 @@
 /**
- * VoiceCraft - Main App Script
- * Handles direct Cognito authentication via SDK (no Hosted UI redirect).
- * Depends on: auth-config.js and amazon-cognito-identity-js (both loaded before this)
+ * VoiceCraft — Main Application Script
+ *
+ * Responsibilities:
+ *   1. Check Cognito session on page load (show login or main screen)
+ *   2. Authenticate users via Cognito SDK (no Hosted UI redirect)
+ *   3. Get temporary AWS credentials from the Cognito Identity Pool
+ *   4. Upload text files directly to S3 (triggers the Polly Lambda pipeline)
+ *   5. Manage all UI state transitions and error messaging
+ *
+ * Dependencies (loaded before this file in index.html):
+ *   - amazon-cognito-identity-js  → AmazonCognitoIdentity global
+ *   - aws-sdk                     → AWS global
+ *   - auth-config.js              → AUTH_CONFIG global
  */
 
-// ─── DOM Elements ────────────────────────────────────────────────────────────
+// ─── DOM References ───────────────────────────────────────────────────────────
 const loginScreen      = document.getElementById('login-screen');
 const mainScreen       = document.getElementById('main-screen');
 const loginForm        = document.getElementById('login-form');
@@ -18,41 +28,41 @@ const loginErrorDiv    = document.getElementById('login-error');
 const formSuccessAlert = document.getElementById('form-success');
 const formErrorAlert   = document.getElementById('form-error');
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
-// ─── Cognito Setup ───────────────────────────────────────────────────────────
+// ─── Cognito User Pool ────────────────────────────────────────────────────────
+// The SDK automatically persists tokens in localStorage so sessions
+// survive page refreshes without requiring the user to log in again.
 const userPool = new AmazonCognitoIdentity.CognitoUserPool({
     UserPoolId: AUTH_CONFIG.userPoolId,
     ClientId:   AUTH_CONFIG.clientId,
 });
 
-// ─── App Initialisation ──────────────────────────────────────────────────────
+// ─── Initialisation ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     setupFormValidation();
-    initializeApp();
-});
-
-function initializeApp() {
     checkAuthState();
     setupEventListeners();
-}
+});
 
+/**
+ * Check whether the user already has a valid Cognito session in localStorage.
+ * Shows the main screen if valid, otherwise shows the login screen.
+ */
 function checkAuthState() {
     const cognitoUser = userPool.getCurrentUser();
     if (!cognitoUser) { showLoginScreen(); return; }
 
     cognitoUser.getSession((err, session) => {
         if (err || !session.isValid()) { showLoginScreen(); return; }
+
         const payload = session.getIdToken().decodePayload();
-        const email   = payload.email || '';
-        const name    = payload.name  || payload['cognito:username'] || email.split('@')[0];
-        sessionStorage.setItem('userEmail', email);
-        sessionStorage.setItem('userName',  name);
-        showMainScreen(email);
+        storeUserInfo(payload);
+        showMainScreen(payload.email);
     });
 }
 
-// ─── Event Listeners ─────────────────────────────────────────────────────────
+// ─── Event Listeners ──────────────────────────────────────────────────────────
 function setupEventListeners() {
     if (loginForm)     loginForm.addEventListener('submit', handleLogin);
     if (logoutBtn)     logoutBtn.addEventListener('click', handleLogout);
@@ -60,10 +70,20 @@ function setupEventListeners() {
     if (fileButton)    fileButton.addEventListener('click', () => textFileInput.click());
     if (textFileInput) textFileInput.addEventListener('change', handleFileSelection);
     if (loginForm)     loginForm.addEventListener('change', clearLoginError);
-    if (videoForm)     videoForm.addEventListener('input', clearFormErrors);
+    if (videoForm)     videoForm.addEventListener('input', clearFormAlerts);
+
+    // Re-check auth when the user switches back to this tab
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkAuthState();
+    });
 }
 
-// ─── Login ───────────────────────────────────────────────────────────────────
+// ─── Login ────────────────────────────────────────────────────────────────────
+
+/**
+ * Authenticate with Cognito directly using email + password.
+ * Requires ALLOW_USER_PASSWORD_AUTH to be enabled on the Cognito app client.
+ */
 function handleLogin(e) {
     e.preventDefault();
     clearLoginError();
@@ -71,10 +91,13 @@ function handleLogin(e) {
     const email    = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
 
-    if (!email || !password) { showLoginError('Please enter your email and password.'); return; }
+    if (!email || !password) {
+        showLoginError('Please enter your email and password.');
+        return;
+    }
 
     const submitBtn = loginForm.querySelector('button[type="submit"]');
-    setButtonLoading(submitBtn, 'Signing in…');
+    setButtonLoading(submitBtn, 'Signing in...');
 
     const cognitoUser = new AmazonCognitoIdentity.CognitoUser({ Username: email, Pool: userPool });
     const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({ Username: email, Password: password });
@@ -83,37 +106,179 @@ function handleLogin(e) {
         onSuccess(session) {
             resetButton(submitBtn, 'SIGN IN');
             const payload = session.getIdToken().decodePayload();
-            const name    = payload.name || payload['cognito:username'] || email.split('@')[0];
-            sessionStorage.setItem('userEmail', email);
-            sessionStorage.setItem('userName',  name);
-            showMainScreen(email);
+            storeUserInfo(payload);
+            showMainScreen(payload.email);
         },
         onFailure(err) {
             resetButton(submitBtn, 'SIGN IN');
             showLoginError(friendlyAuthError(err));
         },
+        // Triggered when an admin-created account requires a password change
         newPasswordRequired() {
             resetButton(submitBtn, 'SIGN IN');
-            showLoginError('You must reset your password. Please use "Forgot password".');
+            showLoginError('A password reset is required. Please contact support.');
         },
     });
 }
 
-// ─── Logout ──────────────────────────────────────────────────────────────────
+// ─── Logout ───────────────────────────────────────────────────────────────────
+
 function handleLogout() {
     if (!confirm('Are you sure you want to sign out?')) return;
     const cognitoUser = userPool.getCurrentUser();
-    if (cognitoUser) cognitoUser.signOut();
+    if (cognitoUser) cognitoUser.signOut(); // Clears tokens from localStorage
     sessionStorage.clear();
     showLoginScreen();
 }
 
-// ─── Screen Management ───────────────────────────────────────────────────────
+// ─── User Info ────────────────────────────────────────────────────────────────
+
+/**
+ * Store key user details in sessionStorage for easy access during the session.
+ * (sessionStorage is cleared automatically when the tab is closed)
+ */
+function storeUserInfo(jwtPayload) {
+    const email = jwtPayload.email || '';
+    sessionStorage.setItem('userEmail', email);
+    sessionStorage.setItem('userName',  jwtPayload.name || jwtPayload['cognito:username'] || email.split('@')[0]);
+    sessionStorage.setItem('userId',    jwtPayload.sub  || '');
+}
+
+// ─── AWS Credentials ──────────────────────────────────────────────────────────
+
+/**
+ * Exchange the Cognito ID token for temporary AWS credentials via the
+ * Cognito Identity Pool. These scoped credentials allow the browser to
+ * PUT objects into S3 without exposing any permanent AWS keys.
+ *
+ * @returns {Promise<AWS.CognitoIdentityCredentials>}
+ */
+function getAWSCredentials() {
+    return new Promise((resolve, reject) => {
+        const cognitoUser = userPool.getCurrentUser();
+        if (!cognitoUser) { reject(new Error('Not authenticated')); return; }
+
+        cognitoUser.getSession((err, session) => {
+            if (err) { reject(err); return; }
+
+            // The Logins map tells the Identity Pool which User Pool issued this token
+            const loginKey = `cognito-idp.${AUTH_CONFIG.region}.amazonaws.com/${AUTH_CONFIG.userPoolId}`;
+
+            AWS.config.region = AUTH_CONFIG.region;
+            AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+                IdentityPoolId: AUTH_CONFIG.identityPoolId,
+                Logins: { [loginKey]: session.getIdToken().getJwtToken() },
+            });
+
+            AWS.config.credentials.refresh(credErr => {
+                if (credErr) { reject(credErr); return; }
+                resolve(AWS.config.credentials);
+            });
+        });
+    });
+}
+
+// ─── Video Form Submission ────────────────────────────────────────────────────
+
+/**
+ * Validate selections, get AWS credentials, then upload the text file to S3.
+ *
+ * S3 key format: {userId}/{jobId}/{voice}/{category}/{audio}/{filename}
+ *
+ * Lambda reads each path segment to extract job metadata — this format
+ * is intentional and must match what lambda_function.py expects.
+ */
+async function handleVideoFormSubmit(e) {
+    e.preventDefault();
+    clearFormAlerts();
+
+    // Collect form values
+    const category = document.querySelector('input[name="category"]:checked');
+    const audio    = document.querySelector('input[name="audio"]:checked');
+    const voice    = document.querySelector('input[name="voice"]:checked');
+    const file     = textFileInput.files[0];
+
+    // Validate all required fields before attempting upload
+    const errors = [];
+    if (!category) errors.push('Please select a content category.');
+    if (!audio)    errors.push('Please select background audio.');
+    if (!voice)    errors.push('Please select a voice.');
+    if (!file)     errors.push('Please upload a text file.');
+    if (errors.length) { showFormError(errors.join(' ')); return; }
+
+    const submitBtn = document.getElementById('submit-btn');
+    setButtonLoading(submitBtn, 'Uploading...');
+
+    try {
+        const jobId  = crypto.randomUUID(); // Unique ID for this job
+        const userId = sessionStorage.getItem('userId') || 'unknown';
+
+        // Get temporary S3 upload credentials from the Identity Pool
+        await getAWSCredentials();
+
+        // S3 key encodes all job metadata — Lambda parses each segment
+        const s3Key = `${userId}/${jobId}/${voice.value}/${category.value}/${audio.value}/${file.name}`;
+
+        const s3 = new AWS.S3();
+        await s3.putObject({
+            Bucket:      AUTH_CONFIG.inputBucket,
+            Key:         s3Key,
+            Body:        file,
+            ContentType: 'text/plain',
+        }).promise();
+
+        console.log(`Job submitted — ID: ${jobId} | Key: ${s3Key}`);
+
+        resetButton(submitBtn, 'CREATE VIDEO');
+        showFormSuccess(jobId);
+        videoForm.reset();
+        fileNameDisplay.textContent = '';
+
+    } catch (err) {
+        console.error('Upload error:', err);
+        resetButton(submitBtn, 'CREATE VIDEO');
+        showFormError(`Upload failed: ${err.message || 'Please try again.'}`);
+    }
+}
+
+// ─── File Handling ────────────────────────────────────────────────────────────
+
+/**
+ * Validate the selected file's type and size, then update the filename display.
+ */
+function handleFileSelection(e) {
+    const file = e.target.files[0];
+    if (!file) { fileNameDisplay.textContent = ''; return; }
+
+    if (!file.name.endsWith('.txt')) {
+        setFieldError('file-error', 'Please select a .txt file.');
+        textFileInput.value = '';
+        fileNameDisplay.textContent = '';
+        return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+        setFieldError('file-error', `File exceeds the ${MAX_FILE_SIZE_BYTES / 1024 / 1024}MB limit.`);
+        textFileInput.value = '';
+        fileNameDisplay.textContent = '';
+        return;
+    }
+
+    // Valid file
+    setFieldError('file-error', '');
+    fileNameDisplay.textContent = `OK: ${file.name} (${formatFileSize(file.size)})`;
+}
+
+// ─── Screen Management ────────────────────────────────────────────────────────
+
 function showMainScreen(userEmail) {
     const userName = sessionStorage.getItem('userName') || userEmail.split('@')[0];
-    if (userNameDisplay) userNameDisplay.textContent = `Welcome, ${capitalizeString(userName)}`;
+    if (userNameDisplay) userNameDisplay.textContent = `Welcome, ${capitalise(userName)}`;
+
     loginScreen.classList.add('d-none');
     mainScreen.classList.remove('d-none');
+
+    // Move keyboard focus to main content for screen reader users
     const mainContent = document.getElementById('main-content');
     if (mainContent) { mainContent.focus(); mainContent.scrollIntoView(); }
 }
@@ -121,26 +286,54 @@ function showMainScreen(userEmail) {
 function showLoginScreen() {
     mainScreen.classList.add('d-none');
     loginScreen.classList.remove('d-none');
+
     if (loginForm)       { loginForm.reset(); clearFieldErrors(); clearLoginError(); }
     if (videoForm)       videoForm.reset();
     if (fileNameDisplay) fileNameDisplay.textContent = '';
+
+    // Return focus to the email field
     const emailInput = document.getElementById('email');
     if (emailInput) emailInput.focus();
 }
 
-// ─── Error Helpers ───────────────────────────────────────────────────────────
+// ─── UI Feedback ──────────────────────────────────────────────────────────────
+
 function showLoginError(message) {
     if (!loginErrorDiv) return;
     loginErrorDiv.textContent = message;
     loginErrorDiv.classList.remove('d-none');
-    loginErrorDiv.setAttribute('role', 'alert');
     loginErrorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function clearLoginError() {
     if (!loginErrorDiv) return;
     loginErrorDiv.classList.add('d-none');
-    loginErrorDiv.removeAttribute('role');
+    loginErrorDiv.textContent = '';
+}
+
+/**
+ * Show the success state with the job ID so users can reference it.
+ */
+function showFormSuccess(jobId) {
+    formSuccessAlert.innerHTML = `
+        <strong>Job submitted!</strong> Your narration is being generated — this usually takes 1-2 minutes.<br>
+        <small class="text-muted">Job ID: ${jobId}</small>
+    `;
+    formSuccessAlert.classList.remove('d-none');
+    formErrorAlert.classList.add('d-none');
+    formSuccessAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function showFormError(message) {
+    formErrorAlert.textContent = message;
+    formErrorAlert.classList.remove('d-none');
+    formSuccessAlert.classList.add('d-none');
+    formErrorAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function clearFormAlerts() {
+    formErrorAlert.classList.add('d-none');
+    formSuccessAlert.classList.add('d-none');
 }
 
 function clearFieldErrors() {
@@ -148,24 +341,13 @@ function clearFieldErrors() {
     if (loginForm) loginForm.classList.remove('was-validated');
 }
 
-function updateFieldError(field, message) {
-    if (!field) return;
-    const errorEl = document.getElementById(`${field.id}-error`);
-    if (errorEl) errorEl.textContent = message;
+function setFieldError(id, message) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = message;
 }
 
-function friendlyAuthError(err) {
-    switch (err.code) {
-        case 'NotAuthorizedException':     return 'Incorrect email or password. Please try again.';
-        case 'UserNotFoundException':      return 'No account found with this email. Please sign up first.';
-        case 'UserNotConfirmedException':  return 'Please verify your email before signing in. Check your inbox.';
-        case 'PasswordResetRequiredException': return 'Your password needs to be reset. Please use "Forgot password".';
-        case 'TooManyRequestsException':   return 'Too many attempts. Please wait a moment and try again.';
-        default: return err.message || 'Sign in failed. Please try again.';
-    }
-}
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
-// ─── Button Helpers ──────────────────────────────────────────────────────────
 function setButtonLoading(btn, label) {
     if (!btn) return;
     btn.disabled = true;
@@ -174,105 +356,40 @@ function setButtonLoading(btn, label) {
 
 function resetButton(btn, label) {
     if (!btn) return;
-    btn.disabled = false;
+    btn.disabled    = false;
     btn.textContent = label;
 }
 
-// ─── File Handling ───────────────────────────────────────────────────────────
-function handleFileSelection(e) {
-    const file = e.target.files[0];
-    if (!file) { fileNameDisplay.textContent = ''; return; }
-    if (!file.name.endsWith('.txt')) {
-        updateFieldError(textFileInput, 'Please select a .txt file.');
-        textFileInput.value = ''; fileNameDisplay.textContent = ''; return;
-    }
-    if (file.size > MAX_FILE_SIZE) {
-        updateFieldError(textFileInput, `File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`);
-        textFileInput.value = ''; fileNameDisplay.textContent = ''; return;
-    }
-    fileNameDisplay.textContent = `✓ ${file.name} (${formatFileSize(file.size)})`;
-    updateFieldError(textFileInput, '');
+function capitalise(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
-    const k = 1024, sizes = ['Bytes', 'KB', 'MB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    const units = ['Bytes', 'KB', 'MB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i];
 }
 
-// ─── Video Form ──────────────────────────────────────────────────────────────
-function handleVideoFormSubmit(e) {
-    e.preventDefault();
-    formSuccessAlert.classList.add('d-none');
-    formErrorAlert.classList.add('d-none');
-
-    const category = document.querySelector('input[name="category"]:checked');
-    const audio    = document.querySelector('input[name="audio"]:checked');
-    const file     = textFileInput.files[0];
-    const errors   = [];
-
-    if (!category) errors.push('Please select a content category.');
-    if (!audio)    errors.push('Please select background audio.');
-    if (!file)     errors.push('Please upload a text file.');
-    if (errors.length) { showFormError(errors.join(' ')); return; }
-
-    const formData = new FormData();
-    formData.append('category', category.value);
-    formData.append('audio', audio.value);
-    formData.append('textFile', file);
-    submitVideoCreationRequest(formData);
+/**
+ * Map Cognito SDK error codes to user-friendly messages.
+ */
+function friendlyAuthError(err) {
+    switch (err.code) {
+        case 'NotAuthorizedException':         return 'Incorrect email or password. Please try again.';
+        case 'UserNotFoundException':          return 'No account found with this email. Please sign up first.';
+        case 'UserNotConfirmedException':      return 'Please verify your email before signing in. Check your inbox.';
+        case 'PasswordResetRequiredException': return 'Your password needs to be reset. Please contact support.';
+        case 'TooManyRequestsException':       return 'Too many attempts. Please wait a moment and try again.';
+        default:                               return err.message || 'Sign in failed. Please try again.';
+    }
 }
 
-function submitVideoCreationRequest(formData) {
-    const submitBtn = document.getElementById('submit-btn');
-    const origText  = submitBtn.textContent;
-    setButtonLoading(submitBtn, 'Creating...');
-    setTimeout(() => {
-        resetButton(submitBtn, origText);
-        showFormSuccess();
-        videoForm.reset();
-        fileNameDisplay.textContent = '';
-        announceToScreenReaders('Video creation request submitted successfully.');
-    }, 1500);
-}
-
-function showFormSuccess() {
-    formSuccessAlert.classList.remove('d-none');
-    formErrorAlert.classList.add('d-none');
-    formSuccessAlert.setAttribute('role', 'status');
-    formSuccessAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    setTimeout(() => formSuccessAlert.classList.add('d-none'), 5000);
-}
-
-function showFormError(message) {
-    formErrorAlert.textContent = message;
-    formErrorAlert.classList.remove('d-none');
-    formSuccessAlert.classList.add('d-none');
-    formErrorAlert.setAttribute('role', 'alert');
-    formErrorAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function clearFormErrors() {
-    formErrorAlert.classList.add('d-none');
-    formErrorAlert.removeAttribute('role');
-    document.querySelectorAll('#video-form .invalid-feedback').forEach(el => el.textContent = '');
-}
-
-// ─── Utilities ───────────────────────────────────────────────────────────────
-function capitalizeString(str) { return str.charAt(0).toUpperCase() + str.slice(1); }
-
-function announceToScreenReaders(message) {
-    const el = document.createElement('div');
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    el.setAttribute('aria-atomic', 'true');
-    el.className = 'visually-hidden';
-    el.textContent = message;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 2000);
-}
-
+/**
+ * Wire up Bootstrap's native form validation so invalid fields
+ * get highlighted when the user tries to submit an incomplete form.
+ */
 function setupFormValidation() {
     document.querySelectorAll('.needs-validation').forEach(form => {
         form.addEventListener('submit', e => {
@@ -281,7 +398,3 @@ function setupFormValidation() {
         }, false);
     });
 }
-
-document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') checkAuthState();
-});

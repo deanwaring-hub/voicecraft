@@ -1,27 +1,29 @@
 /**
- * VoiceCraft - Signup Page
+ * VoiceCraft — Sign Up Page Script
  *
- * Uses Amazon Cognito Identity SDK (loaded via CDN in signup.html)
- * to register new users directly — no Hosted UI, stays on your site.
+ * Uses the Cognito Identity SDK to register users directly on-site.
+ * No Hosted UI redirect — the user never leaves VoiceCraft.
  *
  * Flow:
- *  1. User fills in the form → we call cognitoUser.signUp()
- *  2. Cognito sends a verification code to their email
- *  3. We show a "enter your code" step inline on the same page
- *  4. User enters code → we call cognitoUser.confirmRegistration()
- *  5. On success → redirect to index.html with a success flash message
+ *   Step 1 — User fills the registration form
+ *             → userPool.signUp() is called
+ *             → Cognito sends a 6-digit code to the user's email
+ *             → We hide Step 1 and show Step 2
+ *
+ *   Step 2 — User enters the verification code
+ *             → cognitoUser.confirmRegistration() is called
+ *             → On success, redirect to index.html (login)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // ── Cognito Setup ───────────────────────────────────────────────────────
-    const poolData = {
+    // ── Cognito User Pool ─────────────────────────────────────────────────────
+    const userPool = new AmazonCognitoIdentity.CognitoUserPool({
         UserPoolId: AUTH_CONFIG.userPoolId,
         ClientId:   AUTH_CONFIG.clientId,
-    };
-    const userPool = new AmazonCognitoIdentity.CognitoUserPool(poolData);
+    });
 
-    // ── DOM ─────────────────────────────────────────────────────────────────
+    // ── DOM References ────────────────────────────────────────────────────────
     const signupStep     = document.getElementById('signup-step');
     const verifyStep     = document.getElementById('verify-step');
     const signupForm     = document.getElementById('signup-form');
@@ -31,34 +33,34 @@ document.addEventListener('DOMContentLoaded', () => {
     const resendBtn      = document.getElementById('resend-code-btn');
     const verifyEmailMsg = document.getElementById('verify-email-display');
 
-    let pendingEmail = '';
+    // Stored between Step 1 and Step 2
     let pendingCognitoUser = null;
 
-    // ── Step 1: Registration ────────────────────────────────────────────────
-    signupForm.addEventListener('submit', async (e) => {
+    // ── Step 1: Registration ──────────────────────────────────────────────────
+    signupForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        clearErrors();
+        clearAllErrors();
 
+        // Collect values
         const name     = document.getElementById('name').value.trim();
         const email    = document.getElementById('signup-email').value.trim();
         const password = document.getElementById('signup-password').value;
         const confirm  = document.getElementById('signup-password-confirm').value;
         const terms    = document.getElementById('terms').checked;
 
-        // Client-side validation
+        // Client-side validation before hitting Cognito
         let valid = true;
-        if (!name)                         { setFieldError('name-error', 'Please enter your full name.'); valid = false; }
-        if (!email || !isValidEmail(email)) { setFieldError('signup-email-error', 'Please enter a valid email address.'); valid = false; }
-        if (!password || password.length < 8) { setFieldError('signup-password-error', 'Password must be at least 8 characters.'); valid = false; }
-        if (password !== confirm)           { setFieldError('signup-password-confirm-error', 'Passwords do not match.'); valid = false; }
-        if (!terms)                         { setFieldError('terms-error', 'You must agree to the terms.'); valid = false; }
+        if (!name)                             { setFieldError('name-error', 'Please enter your full name.'); valid = false; }
+        if (!email || !isValidEmail(email))    { setFieldError('signup-email-error', 'Please enter a valid email address.'); valid = false; }
+        if (!password || password.length < 8)  { setFieldError('signup-password-error', 'Password must be at least 8 characters.'); valid = false; }
+        if (password !== confirm)              { setFieldError('signup-password-confirm-error', 'Passwords do not match.'); valid = false; }
+        if (!terms)                            { setFieldError('terms-error', 'You must agree to the terms to continue.'); valid = false; }
         if (!valid) return;
 
-        // Show loading state
         const submitBtn = signupForm.querySelector('button[type="submit"]');
-        setButtonLoading(submitBtn, 'Creating account…');
+        setButtonLoading(submitBtn, 'Creating account...');
 
-        // Cognito attributes
+        // Attributes to attach to the Cognito user record
         const attributeList = [
             new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'email', Value: email }),
             new AmazonCognitoIdentity.CognitoUserAttribute({ Name: 'name',  Value: name  }),
@@ -72,8 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Registration succeeded — show the verification step
-            pendingEmail       = email;
+            // Registration succeeded — Cognito has sent the code
             pendingCognitoUser = result.user;
             if (verifyEmailMsg) verifyEmailMsg.textContent = email;
             signupStep.classList.add('d-none');
@@ -81,100 +82,112 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // ── Step 2: Email Verification ──────────────────────────────────────────
+    // ── Step 2: Email Verification ────────────────────────────────────────────
     verifyForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        clearErrors();
+        clearAllErrors();
 
         const code = document.getElementById('verify-code').value.trim();
-        if (!code) { setFieldError('verify-code-error', 'Please enter the verification code.'); return; }
+        if (!code) {
+            setFieldError('verify-code-error', 'Please enter the 6-digit verification code.');
+            return;
+        }
 
         const submitBtn = verifyForm.querySelector('button[type="submit"]');
-        setButtonLoading(submitBtn, 'Verifying…');
+        setButtonLoading(submitBtn, 'Verifying...');
 
         pendingCognitoUser.confirmRegistration(code, true, (err) => {
             resetButton(submitBtn, 'Verify Email');
 
             if (err) {
-                showVerifyError(friendlyError(err));
+                showVerifyMessage(friendlyError(err), 'danger');
                 return;
             }
 
-            // All done — go to login with a success message
+            // Email confirmed — send to login with a success flag
             sessionStorage.setItem('signupSuccess', 'Account verified! Please sign in.');
             window.location.href = 'index.html';
         });
     });
 
-    // ── Resend Code ─────────────────────────────────────────────────────────
+    // ── Resend Verification Code ──────────────────────────────────────────────
     if (resendBtn) {
         resendBtn.addEventListener('click', () => {
             if (!pendingCognitoUser) return;
-            resendBtn.disabled = true;
-            resendBtn.textContent = 'Sending…';
+
+            resendBtn.disabled    = true;
+            resendBtn.textContent = 'Sending...';
 
             pendingCognitoUser.resendConfirmationCode((err) => {
-                resendBtn.disabled = false;
+                resendBtn.disabled    = false;
                 resendBtn.textContent = 'Resend code';
+
                 if (err) {
-                    showVerifyError(friendlyError(err));
+                    showVerifyMessage(friendlyError(err), 'danger');
                 } else {
-                    showVerifyError('A new code has been sent to your email.', 'success');
+                    showVerifyMessage('A new code has been sent to your email.', 'success');
                 }
             });
         });
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
+    // ── UI Helpers ────────────────────────────────────────────────────────────
+
     function showSignupError(message) {
         signupError.textContent = message;
         signupError.classList.remove('d-none');
         signupError.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    function showVerifyError(message, type = 'danger') {
+    function showVerifyMessage(message, type = 'danger') {
         verifyError.textContent = message;
-        verifyError.className = `alert alert-${type}`;
+        verifyError.className   = `alert alert-${type}`;
         verifyError.classList.remove('d-none');
     }
 
-    function setButtonLoading(btn, label) {
-        btn.disabled = true;
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${label}`;
-    }
-
-    function resetButton(btn, label) {
-        btn.disabled = false;
-        btn.textContent = label;
-    }
-
-    function clearErrors() {
-        ['name-error','signup-email-error','signup-password-error','signup-password-confirm-error','terms-error','verify-code-error']
-            .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+    function clearAllErrors() {
+        ['name-error', 'signup-email-error', 'signup-password-error',
+         'signup-password-confirm-error', 'terms-error', 'verify-code-error']
+            .forEach(id => setFieldError(id, ''));
         signupError.classList.add('d-none');
         signupError.textContent = '';
     }
 
-    /** Turn Cognito SDK error codes into readable messages */
+    function setButtonLoading(btn, label) {
+        btn.disabled  = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${label}`;
+    }
+
+    function resetButton(btn, label) {
+        btn.disabled    = false;
+        btn.textContent = label;
+    }
+
+    /**
+     * Map Cognito SDK error codes to user-friendly messages.
+     */
     function friendlyError(err) {
         switch (err.code) {
             case 'UsernameExistsException':
                 return 'An account with this email already exists. Try signing in instead.';
             case 'InvalidPasswordException':
-                return 'Password must be at least 8 characters and include uppercase, lowercase, and a number.';
+                return 'Password must include uppercase, lowercase, a number, and a special character.';
             case 'CodeMismatchException':
                 return 'Incorrect verification code. Please check your email and try again.';
             case 'ExpiredCodeException':
                 return 'That code has expired. Click "Resend code" to get a new one.';
             case 'TooManyRequestsException':
-                return 'Too many attempts. Please wait a moment and try again.';
             case 'LimitExceededException':
-                return 'Too many requests. Please try again in a few minutes.';
+                return 'Too many requests. Please wait a moment and try again.';
             default:
                 return err.message || 'Something went wrong. Please try again.';
         }
     }
+
 });
+
+// ── Standalone Utilities ──────────────────────────────────────────────────────
+// (Outside DOMContentLoaded so they're available globally if needed)
 
 function isValidEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
