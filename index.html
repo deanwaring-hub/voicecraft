@@ -1,301 +1,500 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="VoiceCraft - Transform text into engaging videos with AI-powered narration and ambient audio">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="VoiceCraft - Transform text into engaging videos with AI-powered narration and ambient audio"
+    />
     <title>VoiceCraft - Text to Video Application</title>
-    
+
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
     <!-- Skip to main content link for accessibility -->
-    <a href="#main-content" class="visually-hidden-focusable">Skip to main content</a>
+    <a href="#main-content" class="visually-hidden-focusable"
+      >Skip to main content</a
+    >
 
     <!-- Login Screen -->
-    <div id="login-screen" class="login-container d-flex align-items-center justify-content-center min-vh-100">
-        <div class="login-card card shadow-lg">
-            <div class="card-body p-5">
-                <div class="text-center mb-4">
-                    <h1 class="login-title">VoiceCraft</h1>
-                    <p class="login-subtitle text-muted">Transform Text Into Video</p>
-                </div>
+    <div
+      id="login-screen"
+      class="login-container d-flex align-items-center justify-content-center min-vh-100"
+    >
+      <div class="login-card card shadow-lg">
+        <div class="card-body p-5">
+          <div class="text-center mb-4">
+            <h1 class="login-title">VoiceCraft</h1>
+            <p class="login-subtitle text-muted">Transform Text Into Video</p>
+          </div>
 
-                <form id="login-form" class="needs-validation" novalidate aria-labelledby="login-title">
-                    <div class="mb-4">
-                        <label for="email" class="form-label">Email Address</label>
-                        <input 
-                            type="email" 
-                            class="form-control form-control-lg" 
-                            id="email" 
-                            name="email"
-                            placeholder="you@example.com"
-                            required
-                            aria-describedby="email-error"
-                        >
-                        <div id="email-error" class="invalid-feedback d-block"></div>
-                    </div>
-
-                    <div class="mb-4">
-                        <label for="password" class="form-label">Password</label>
-                        <input 
-                            type="password" 
-                            class="form-control form-control-lg" 
-                            id="password" 
-                            name="password"
-                            placeholder="Enter your password"
-                            required
-                            aria-describedby="password-error"
-                        >
-                        <div id="password-error" class="invalid-feedback d-block"></div>
-                    </div>
-
-                    <div class="mb-3 form-check">
-                        <input 
-                            type="checkbox" 
-                            class="form-check-input" 
-                            id="remember" 
-                            name="remember"
-                        >
-                        <label class="form-check-label" for="remember">
-                            Remember me
-                        </label>
-                    </div>
-
-                    <button class="btn btn-primary btn-lg w-100 mb-3" type="submit" aria-label="Sign in">SIGN IN</button>
-
-                    <div class="d-grid gap-2 mb-3">
-                        <a href="signup.html" class="btn btn-outline-primary btn-lg" role="button" id="signup-link" aria-label="Create a new VoiceCraft account">Sign Up</a>
-                    </div>
-
-                    <div id="login-error" class="alert alert-danger d-none" role="alert"></div>
-                </form>
-
-
-                <hr class="my-4">
+          <form
+            id="login-form"
+            class="needs-validation"
+            novalidate
+            aria-labelledby="login-title"
+          >
+            <div class="mb-4">
+              <label for="email" class="form-label">Email Address</label>
+              <input
+                type="email"
+                class="form-control form-control-lg"
+                id="email"
+                name="email"
+                placeholder="you@example.com"
+                required
+                aria-describedby="email-error"
+              />
+              <div id="email-error" class="invalid-feedback d-block"></div>
             </div>
+
+            <div class="mb-4">
+              <label for="password" class="form-label">Password</label>
+              <input
+                type="password"
+                class="form-control form-control-lg"
+                id="password"
+                name="password"
+                placeholder="Enter your password"
+                required
+                aria-describedby="password-error"
+              />
+              <div id="password-error" class="invalid-feedback d-block"></div>
+            </div>
+
+            <div class="mb-3 form-check">
+              <input
+                type="checkbox"
+                class="form-check-input"
+                id="remember"
+                name="remember"
+              />
+              <label class="form-check-label" for="remember">
+                Remember me
+              </label>
+            </div>
+
+            <button
+              class="btn btn-primary btn-lg w-100 mb-3"
+              type="submit"
+              aria-label="Sign in"
+            >
+              SIGN IN
+            </button>
+
+            <div class="d-grid gap-2 mb-3">
+              <a
+                href="signup.html"
+                class="btn btn-outline-primary btn-lg"
+                role="button"
+                id="signup-link"
+                aria-label="Create a new VoiceCraft account"
+                >Sign Up</a
+              >
+            </div>
+
+            <div
+              id="login-error"
+              class="alert alert-danger d-none"
+              role="alert"
+            ></div>
+          </form>
+
+          <hr class="my-4" />
         </div>
+      </div>
     </div>
 
     <!-- Main Application Screen -->
     <div id="main-screen" class="main-container d-none">
-        <!-- Navigation Bar -->
-        <nav class="navbar navbar-dark bg-dark sticky-top shadow-sm">
-            <div class="container-fluid">
-                <span class="navbar-brand mb-0 h1">
-                    <span aria-label="VoiceCraft">VoiceCraft</span>
-                </span>
-                <div class="d-flex align-items-center gap-3">
-                    <span id="user-name" class="text-light" role="status"></span>
-                    <button 
-                        id="logout-btn" 
-                        class="btn btn-outline-light btn-sm"
-                        aria-label="Sign out of VoiceCraft"
-                    >
-                        Logout
-                    </button>
+      <!-- Navigation Bar -->
+      <nav class="navbar navbar-dark bg-dark sticky-top shadow-sm">
+        <div class="container-fluid">
+          <span class="navbar-brand mb-0 h1">
+            <span aria-label="VoiceCraft">VoiceCraft</span>
+          </span>
+          <div class="d-flex align-items-center gap-3">
+            <span id="user-name" class="text-light" role="status"></span>
+            <button
+              id="logout-btn"
+              class="btn btn-outline-light btn-sm"
+              aria-label="Sign out of VoiceCraft"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Main Content -->
+      <main id="main-content" class="py-5">
+        <div class="container">
+          <div class="row">
+            <div class="col-lg-8 mx-auto">
+              <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                  <h2 class="card-title mb-0">Create Your Video</h2>
                 </div>
-            </div>
-        </nav>
+                <div class="card-body p-5">
+                  <form
+                    id="video-form"
+                    class="needs-validation"
+                    novalidate
+                    aria-labelledby="create-video-title"
+                  >
+                    <h3 id="create-video-title" class="visually-hidden">
+                      Create Your Video
+                    </h3>
 
-        <!-- Main Content -->
-        <main id="main-content" class="py-5">
-            <div class="container">
-                <div class="row">
-                    <div class="col-lg-8 mx-auto">
-                        <div class="card shadow-sm border-0">
-                            <div class="card-header bg-primary text-white">
-                                <h2 class="card-title mb-0">Create Your Video</h2>
-                            </div>
-                            <div class="card-body p-5">
-                                <form id="video-form" class="needs-validation" novalidate aria-labelledby="create-video-title">
-                                    <h3 id="create-video-title" class="visually-hidden">Create Your Video</h3>
-
-                                    <!-- Category Selection -->
-                                    <fieldset class="mb-5">
-                                        <legend class="form-label fw-bold mb-3">Select Content Category</legend>
-                                        <div class="category-options">
-                                            <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="radio" 
-                                                    name="category" 
-                                                    id="category-educational" 
-                                                    value="educational"
-                                                    required
-                                                >
-                                                <label class="form-check-label" for="category-educational">
-                                                    <span class="category-icon">📚</span>
-                                                    <span class="category-text">Educational</span>
-                                                    <span class="category-desc">Instructional and informative content</span>
-                                                </label>
-                                            </div>
-
-                                            <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="radio" 
-                                                    name="category" 
-                                                    id="category-relaxation" 
-                                                    value="relaxation"
-                                                    required
-                                                >
-                                                <label class="form-check-label" for="category-relaxation">
-                                                    <span class="category-icon">🧘</span>
-                                                    <span class="category-text">Relaxation</span>
-                                                    <span class="category-desc">Calming and stress-relief content</span>
-                                                </label>
-                                            </div>
-
-                                            <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="radio" 
-                                                    name="category" 
-                                                    id="category-story" 
-                                                    value="story"
-                                                    required
-                                                >
-                                                <label class="form-check-label" for="category-story">
-                                                    <span class="category-icon">📖</span>
-                                                    <span class="category-text">Story</span>
-                                                    <span class="category-desc">Narrative and fictional content</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                        <div class="invalid-feedback d-block mt-2" id="category-error"></div>
-                                    </fieldset>
-
-                                    <!-- Audio Selection -->
-                                    <fieldset class="mb-5">
-                                        <legend class="form-label fw-bold mb-3">Select Background Audio</legend>
-                                        <div class="audio-options">
-                                            <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="radio" 
-                                                    name="audio" 
-                                                    id="audio-brown-noise" 
-                                                    value="brown-noise"
-                                                    required
-                                                >
-                                                <label class="form-check-label" for="audio-brown-noise">
-                                                    <span class="audio-icon">🎵</span>
-                                                    <span class="audio-text">Brown Noise</span>
-                                                    <span class="audio-desc">Deep, rumbling ambient sound</span>
-                                                </label>
-                                            </div>
-
-                                            <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="radio" 
-                                                    name="audio" 
-                                                    id="audio-music" 
-                                                    value="music"
-                                                    required
-                                                >
-                                                <label class="form-check-label" for="audio-music">
-                                                    <span class="audio-icon">🎼</span>
-                                                    <span class="audio-text">Music</span>
-                                                    <span class="audio-desc">Royalty-free background music</span>
-                                                </label>
-                                            </div>
-
-                                            <div class="form-check">
-                                                <input 
-                                                    class="form-check-input" 
-                                                    type="radio" 
-                                                    name="audio" 
-                                                    id="audio-calming" 
-                                                    value="calming-sounds"
-                                                    required
-                                                >
-                                                <label class="form-check-label" for="audio-calming">
-                                                    <span class="audio-icon">🌊</span>
-                                                    <span class="audio-text">Calming Sounds</span>
-                                                    <span class="audio-desc">Nature sounds for relaxation</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                        <div class="invalid-feedback d-block mt-2" id="audio-error"></div>
-                                    </fieldset>
-
-                                    <!-- File Upload -->
-                                    <div class="mb-5">
-                                        <label for="text-file" class="form-label fw-bold">Upload Text File</label>
-                                        <p class="text-muted small mb-3">
-                                            <span aria-label="Supported format">Supports .txt files, maximum 5MB</span>
-                                        </p>
-                                        <div class="input-group input-group-lg">
-                                            <input 
-                                                type="file" 
-                                                class="form-control" 
-                                                id="text-file" 
-                                                name="text-file"
-                                                accept=".txt"
-                                                required
-                                                aria-describedby="file-help"
-                                            >
-                                            <button 
-                                                class="btn btn-outline-secondary" 
-                                                type="button"
-                                                id="file-button"
-                                                aria-label="Browse for file"
-                                            >
-                                                Browse
-                                            </button>
-                                        </div>
-                                        <div id="file-help" class="form-text mt-2">
-                                            <span id="file-name"></span>
-                                        </div>
-                                        <div class="invalid-feedback d-block" id="file-error"></div>
-                                    </div>
-
-                                    <!-- Form Status Messages -->
-                                    <div id="form-success" class="alert alert-success d-none" role="alert">
-                                        <strong>Success!</strong> Your video is being created. You will be notified when it's ready.
-                                    </div>
-                                    <div id="form-error" class="alert alert-danger d-none" role="alert"></div>
-
-                                    <!-- Submit Button -->
-                                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
-                                        <button type="reset" class="btn btn-outline-secondary btn-lg">
-                                            Clear Form
-                                        </button>
-                                        <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">
-                                            Create Video
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
+                    <!-- Category Selection -->
+                    <fieldset class="mb-5">
+                      <legend class="form-label fw-bold mb-3">
+                        Select Content Category
+                      </legend>
+                      <div class="category-options">
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="category"
+                            id="category-educational"
+                            value="educational"
+                            required
+                          />
+                          <label
+                            class="form-check-label"
+                            for="category-educational"
+                          >
+                            <span class="category-icon">📚</span>
+                            <span class="category-text">Educational</span>
+                            <span class="category-desc"
+                              >Instructional and informative content</span
+                            >
+                          </label>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </main>
 
-        <!-- Footer -->
-        <footer class="bg-light py-4 mt-5 border-top">
-            <div class="container text-center">
-                <p class="text-muted mb-0">
-                    &copy; 2026 VoiceCraft. All rights reserved. Powered by AWS.
-                </p>
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="category"
+                            id="category-relaxation"
+                            value="relaxation"
+                            required
+                          />
+                          <label
+                            class="form-check-label"
+                            for="category-relaxation"
+                          >
+                            <span class="category-icon">🧘</span>
+                            <span class="category-text">Relaxation</span>
+                            <span class="category-desc"
+                              >Calming and stress-relief content</span
+                            >
+                          </label>
+                        </div>
+
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="category"
+                            id="category-story"
+                            value="story"
+                            required
+                          />
+                          <label class="form-check-label" for="category-story">
+                            <span class="category-icon">📖</span>
+                            <span class="category-text">Story</span>
+                            <span class="category-desc"
+                              >Narrative and fictional content</span
+                            >
+                          </label>
+                        </div>
+                      </div>
+                      <div
+                        class="invalid-feedback d-block mt-2"
+                        id="category-error"
+                      ></div>
+                    </fieldset>
+
+                    <!-- Audio Selection -->
+                    <fieldset class="mb-5">
+                      <legend class="form-label fw-bold mb-3">
+                        Select Background Audio
+                      </legend>
+                      <div class="audio-options">
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="audio"
+                            id="audio-brown-noise"
+                            value="brown-noise"
+                            required
+                          />
+                          <label
+                            class="form-check-label"
+                            for="audio-brown-noise"
+                          >
+                            <span class="audio-icon">🎵</span>
+                            <span class="audio-text">Brown Noise</span>
+                            <span class="audio-desc"
+                              >Deep, rumbling ambient sound</span
+                            >
+                          </label>
+                        </div>
+
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="audio"
+                            id="audio-music"
+                            value="music"
+                            required
+                          />
+                          <label class="form-check-label" for="audio-music">
+                            <span class="audio-icon">🎼</span>
+                            <span class="audio-text">Music</span>
+                            <span class="audio-desc"
+                              >Royalty-free background music</span
+                            >
+                          </label>
+                        </div>
+
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="audio"
+                            id="audio-calming"
+                            value="calming-sounds"
+                            required
+                          />
+                          <label class="form-check-label" for="audio-calming">
+                            <span class="audio-icon">🌊</span>
+                            <span class="audio-text">Calming Sounds</span>
+                            <span class="audio-desc"
+                              >Nature sounds for relaxation</span
+                            >
+                          </label>
+                        </div>
+                      </div>
+                      <div
+                        class="invalid-feedback d-block mt-2"
+                        id="audio-error"
+                      ></div>
+                    </fieldset>
+                    <!-- Add this fieldset to index.html AFTER the Audio Selection fieldset -->
+
+                    <!-- Voice Selection -->
+                    <fieldset class="mb-5">
+                      <legend class="form-label fw-bold mb-3">
+                        Select Voice
+                      </legend>
+                      <div class="audio-options">
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="voice"
+                            id="voice-brian"
+                            value="Brian"
+                            required
+                          />
+                          <label class="form-check-label" for="voice-brian">
+                            <span class="audio-icon">🎙️</span>
+                            <span class="audio-text">Brian</span>
+                            <span class="audio-desc">British Male</span>
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="voice"
+                            id="voice-amy"
+                            value="Amy"
+                            required
+                          />
+                          <label class="form-check-label" for="voice-amy">
+                            <span class="audio-icon">🎙️</span>
+                            <span class="audio-text">Amy</span>
+                            <span class="audio-desc">British Female</span>
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="voice"
+                            id="voice-joanna"
+                            value="Joanna"
+                            required
+                          />
+                          <label class="form-check-label" for="voice-joanna">
+                            <span class="audio-icon">🎙️</span>
+                            <span class="audio-text">Joanna</span>
+                            <span class="audio-desc">American Female</span>
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="voice"
+                            id="voice-matthew"
+                            value="Matthew"
+                            required
+                          />
+                          <label class="form-check-label" for="voice-matthew">
+                            <span class="audio-icon">🎙️</span>
+                            <span class="audio-text">Matthew</span>
+                            <span class="audio-desc">American Male</span>
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="voice"
+                            id="voice-nicole"
+                            value="Nicole"
+                            required
+                          />
+                          <label class="form-check-label" for="voice-nicole">
+                            <span class="audio-icon">🎙️</span>
+                            <span class="audio-text">Nicole</span>
+                            <span class="audio-desc">Australian Female</span>
+                          </label>
+                        </div>
+                        <div class="form-check">
+                          <input
+                            class="form-check-input"
+                            type="radio"
+                            name="voice"
+                            id="voice-russell"
+                            value="Russell"
+                            required
+                          />
+                          <label class="form-check-label" for="voice-russell">
+                            <span class="audio-icon">🎙️</span>
+                            <span class="audio-text">Russell</span>
+                            <span class="audio-desc">Australian Male</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div
+                        class="invalid-feedback d-block mt-2"
+                        id="voice-error"
+                      ></div>
+                    </fieldset>
+
+                    <!-- File Upload -->
+                    <div class="mb-5">
+                      <label for="text-file" class="form-label fw-bold"
+                        >Upload Text File</label
+                      >
+                      <p class="text-muted small mb-3">
+                        <span aria-label="Supported format"
+                          >Supports .txt files, maximum 5MB</span
+                        >
+                      </p>
+                      <div class="input-group input-group-lg">
+                        <input
+                          type="file"
+                          class="form-control"
+                          id="text-file"
+                          name="text-file"
+                          accept=".txt"
+                          required
+                          aria-describedby="file-help"
+                        />
+                        <button
+                          class="btn btn-outline-secondary"
+                          type="button"
+                          id="file-button"
+                          aria-label="Browse for file"
+                        >
+                          Browse
+                        </button>
+                      </div>
+                      <div id="file-help" class="form-text mt-2">
+                        <span id="file-name"></span>
+                      </div>
+                      <div
+                        class="invalid-feedback d-block"
+                        id="file-error"
+                      ></div>
+                    </div>
+
+                    <!-- Form Status Messages -->
+                    <div
+                      id="form-success"
+                      class="alert alert-success d-none"
+                      role="alert"
+                    >
+                      <strong>Success!</strong> Your video is being created. You
+                      will be notified when it's ready.
+                    </div>
+                    <div
+                      id="form-error"
+                      class="alert alert-danger d-none"
+                      role="alert"
+                    ></div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
+                      <button
+                        type="reset"
+                        class="btn btn-outline-secondary btn-lg"
+                      >
+                        Clear Form
+                      </button>
+                      <button
+                        type="submit"
+                        class="btn btn-primary btn-lg"
+                        id="submit-btn"
+                      >
+                        Create Video
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             </div>
-        </footer>
+          </div>
+        </div>
+      </main>
+
+      <!-- Footer -->
+      <footer class="bg-light py-4 mt-5 border-top">
+        <div class="container text-center">
+          <p class="text-muted mb-0">
+            &copy; 2026 VoiceCraft. All rights reserved. Powered by AWS.
+          </p>
+        </div>
+      </footer>
     </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Amazon Cognito Identity SDK -->
     <script src="https://unpkg.com/amazon-cognito-identity-js@6.3.12/dist/amazon-cognito-identity.min.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js"></script>
+
     <!-- Auth Config MUST come before scripts.js -->
     <script src="js/auth-config.js"></script>
     <script src="js/scripts.js"></script>
-</body>
+  </body>
 </html>
