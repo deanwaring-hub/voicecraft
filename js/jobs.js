@@ -100,9 +100,15 @@ async function pollOnce(jobId) {
         updateCurrentJobUI(job);
 
         if (job.status === 'COMPLETE' || job.status === 'FAILED') {
-            // Reload the all-jobs list to include this job
+            // Reload the all-jobs list so the completed job appears
             const userId = sessionStorage.getItem('userId');
-            if (userId) loadAllJobs(userId);
+            if (userId) await loadAllJobs(userId);
+            // Hide the current job section after a short delay so user sees the complete state
+            setTimeout(() => {
+                sessionStorage.removeItem('currentJobId');
+                sessionStorage.removeItem('currentJobMeta');
+                document.getElementById('current-job-section').classList.add('d-none');
+            }, 5000); // hide after 5 seconds
             return true;
         }
 
