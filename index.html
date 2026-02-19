@@ -66,9 +66,7 @@
                         </label>
                     </div>
 
-                    <a href="https://eu-west-2whgod3rya.auth.eu-west-2.amazoncognito.com/login?client_id=3n22isgi343f4403f6iv3q8kab&response_type=code&scope=email+openid+profile&redirect_uri=https://dkg9puli9dc2t.cloudfront.net/">
-                        <button class="btn btn-primary btn-lg w-100 mb-3" type="button" aria-label="Sign in with Cognito">SIGN IN</button>
-                    </a>
+                    <button class="btn btn-primary btn-lg w-100 mb-3" type="submit" aria-label="Sign in">SIGN IN</button>
 
                     <div class="d-grid gap-2 mb-3">
                         <a href="signup.html" class="btn btn-outline-primary btn-lg" role="button" id="signup-link" aria-label="Create a new VoiceCraft account">Sign Up</a>
@@ -77,12 +75,6 @@
                     <div id="login-error" class="alert alert-danger d-none" role="alert"></div>
                 </form>
 
-                <p class="text-center mt-3">
-                    New user?&nbsp;
-                    <a href="https://eu-west-2whgod3rya.auth.eu-west-2.amazoncognito.com/signup?client_id=3n22isgi343f4403f6iv3q8kab&response_type=code&scope=email+openid+profile&redirect_uri=https://dkg9puli9dc2t.cloudfront.net/" class="text-decoration-underline">
-                        Sign up here
-                    </a>
-                </p>
 
                 <hr class="my-4">
             </div>
@@ -300,7 +292,8 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Custom JS -->
+    <!-- Auth Config MUST come before scripts.js -->
+    <script src="js/auth-config.js"></script>
     <script src="js/scripts.js"></script>
 </body>
 </html>
