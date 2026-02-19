@@ -8,7 +8,7 @@
  */
 const AUTH_CONFIG = {
 
-    // ── AWS ────────────────────────────────────────────────────────────────
+    // ── AWS Region ─────────────────────────────────────────────────────────
     region: 'eu-west-2',
 
     // ── Cognito User Pool ──────────────────────────────────────────────────
@@ -34,5 +34,9 @@ const AUTH_CONFIG = {
     // outputBucket — Lambda saves the generated MP3 here
     inputBucket:  'voicecraft-text-input',
     outputBucket: 'voicecraft-audio-output',
+
+    // ── API Gateway ────────────────────────────────────────────────────────
+    // Base URL for the VoiceCraft REST API (jobs + download URL endpoints)
+    apiBaseUrl: 'https://6e3t8ktui5.execute-api.eu-west-2.amazonaws.com/prod',
 
 };
